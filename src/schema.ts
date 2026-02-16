@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Ajv from 'ajv';
+import { createRequire } from 'node:module';
 
 import type { SignalMsg, WireMsg } from './types.js';
 import type { OrderEnvelopeV1 } from './types.js';
@@ -18,11 +18,13 @@ function loadJson(p: string): any {
 }
 
 export function loadValidators(): SchemaValidators {
+  const require = createRequire(import.meta.url);
+  const Ajv2020 = require('ajv/dist/2020.js').default as any;
   const here = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(here, '..');
   const specDir = path.join(root, 'spec', 'schemas');
 
-  const ajv = new Ajv({
+  const ajv = new Ajv2020({
     // Keep this permissive; these are interoperability schemas, not a closed-world API.
     // Some Ajv type definitions differ across builds, so keep options minimal.
     allErrors: false,

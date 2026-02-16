@@ -1,7 +1,7 @@
 node_modules/
 dist/
 data/
+data-*/
 .DS_Store
 npm-debug.log*
 yarn-error.log*
-
