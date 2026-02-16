@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tl://schemas/manifest.v1.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["v", "collatorId", "collatorPubKey", "roles", "protocol", "tape", "policy", "build", "sigCollator"],
+  "properties": {
+    "v": { "const": 1 },
+    "collatorId": { "type": "string", "minLength": 1 },
+    "collatorPubKey": { "type": "string", "pattern": "^[0-9a-fA-F]+$" },
+    "infraAttestations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["body", "sigAdmin"],
+        "properties": {
+          "body": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["v", "kind", "clearlistId", "infraPubKey", "infraId", "ws", "issuedAt", "expiresAt", "nonce", "adminPubKey"],
+            "properties": {
+              "v": { "const": 1 },
+              "kind": { "enum": ["COLLATOR_APPROVAL", "BUNDLER_APPROVAL"] },
+              "clearlistId": { "type": "number" },
+              "infraPubKey": { "type": "string", "pattern": "^[0-9a-fA-F]+$" },
+              "infraId": { "type": "string" },
+              "ws": { "type": "string" },
+              "issuedAt": { "type": "number" },
+              "expiresAt": { "type": "number" },
+              "nonce": { "type": "string" },
+              "adminPubKey": { "type": "string", "pattern": "^[0-9a-fA-F]+$" }
+            }
+          },
+          "sigAdmin": { "type": "string", "pattern": "^[0-9a-fA-F]{128}$" }
+        }
+      }
+    },
+    "region": { "type": "string" },
+    "roles": { "type": "array", "items": { "enum": ["collator", "bundler"] } },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["wireMsgVersion", "dataChannelLabel", "maxMsgBytes"],
+      "properties": {
+        "wireMsgVersion": { "const": 1 },
+        "dataChannelLabel": { "type": "string" },
+        "maxMsgBytes": { "type": "number" }
+      }
+    },
+    "tape": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["format", "hash", "indexStride", "replayBatch"],
+      "properties": {
+        "format": { "const": "ndjson" },
+        "hash": { "const": "sha256" },
+        "indexStride": { "type": "number" },
+        "replayBatch": { "type": "number" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["clearlist", "network", "rateLimit"],
+      "properties": {
+        "clearlist": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["enforce", "failMode", "cacheTtlSec"],
+          "properties": {
+            "enforce": { "type": "boolean" },
+            "failMode": { "enum": ["open", "closed"] },
+            "oracleUrl": { "type": "string" },
+            "cacheTtlSec": { "type": "number" }
+          }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["ipLogging", "vpnFilterMode", "asnBlockMode"],
+          "properties": {
+            "ipLogging": { "enum": ["off", "on"] },
+            "vpnFilterMode": { "enum": ["off", "log", "reject"] },
+            "asnBlockMode": { "enum": ["off", "log", "reject"] }
+          }
+        },
+        "rateLimit": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["submitRps", "submitBurst"],
+          "properties": {
+            "submitRps": { "type": "number" },
+            "submitBurst": { "type": "number" }
+          }
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version"],
+      "properties": {
+        "version": { "type": "string" },
+        "gitSha": { "type": "string" },
+        "builtAt": { "type": "string" }
+      }
+    },
+    "sigCollator": { "type": "string", "pattern": "^[0-9a-fA-F]{128}$" }
+  }
+}

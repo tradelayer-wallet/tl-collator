@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tl://schemas/order-envelope.v1.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["v", "kind", "body", "traderPubKey", "clientNonce", "orderId", "sigTrader"],
+  "properties": {
+    "v": { "const": 1 },
+    "kind": { "enum": ["NEW", "CANCEL", "REPLACE"] },
+    "body": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["v", "market", "side", "px", "qty", "visibility", "clientTs"],
+      "properties": {
+        "v": { "const": 1 },
+        "market": { "type": "string", "minLength": 1 },
+        "side": { "enum": ["BUY", "SELL"] },
+        "px": { "type": "string" },
+        "qty": { "type": "string" },
+        "tif": { "enum": ["GTC", "IOC", "FOK"] },
+        "expiryTs": { "type": "number" },
+        "visibility": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["kind"],
+              "properties": { "kind": { "const": "PUBLIC" } }
+            },
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["kind", "groupId"],
+              "properties": { "kind": { "const": "CLEARLIST" }, "groupId": { "type": "string", "minLength": 1 } }
+            },
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["kind", "groupId"],
+              "properties": { "kind": { "const": "DARK" }, "groupId": { "type": "string", "minLength": 1 } }
+            }
+          ]
+        },
+        "clearlistTag": { "type": "string" },
+        "clientTs": { "type": "number" }
+      }
+    },
+    "traderPubKey": { "type": "string", "pattern": "^[0-9a-fA-F]+$" },
+    "clientNonce": { "type": "string", "pattern": "^[0-9a-fA-F]+$" },
+    "orderId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "sigTrader": { "type": "string", "pattern": "^[0-9a-fA-F]{128}$" },
+    "replacesOrderId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "cancelsOrderId": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+  }
+}
+

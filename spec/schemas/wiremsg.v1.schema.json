@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tl://schemas/wiremsg.v1.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "clientId", "want"],
+      "properties": {
+        "t": { "const": "HELLO" },
+        "v": { "const": 1 },
+        "clientId": { "type": "string" },
+        "want": { "type": "array", "items": { "enum": ["TAPE", "SUBMIT"] } }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "order"],
+      "properties": {
+        "t": { "const": "SUBMIT" },
+        "v": { "const": 1 },
+        "order": { "$ref": "tl://schemas/order-envelope.v1.json" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v"],
+      "properties": {
+        "t": { "const": "TAPE_SUB" },
+        "v": { "const": 1 },
+        "fromSeq": { "type": "number" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "entry"],
+      "properties": {
+        "t": { "const": "TAPE_ENTRY" },
+        "v": { "const": 1 },
+        "entry": { "$ref": "tl://schemas/tape-entry.v1.json" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "lastSeq"],
+      "properties": {
+        "t": { "const": "TAPE_END" },
+        "v": { "const": 1 },
+        "lastSeq": { "type": "number" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "ts"],
+      "properties": {
+        "t": { "enum": ["PING", "PONG"] },
+        "v": { "const": 1 },
+        "ts": { "type": "number" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "code", "msg"],
+      "properties": {
+        "t": { "const": "ERR" },
+        "v": { "const": 1 },
+        "code": { "type": "string" },
+        "msg": { "type": "string" }
+      }
+    }
+  ]
+}
+

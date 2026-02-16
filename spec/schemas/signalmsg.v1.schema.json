@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tl://schemas/signalmsg.v1.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "clientId"],
+      "properties": { "t": { "const": "SIGNAL_HELLO" }, "v": { "const": 1 }, "clientId": { "type": "string" } }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "sdp", "kind"],
+      "properties": { "t": { "const": "SIGNAL_OFFER" }, "v": { "const": 1 }, "kind": { "const": "offer" }, "sdp": { "type": "string" } }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "sdp", "kind"],
+      "properties": { "t": { "const": "SIGNAL_ANSWER" }, "v": { "const": 1 }, "kind": { "const": "answer" }, "sdp": { "type": "string" } }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "candidate"],
+      "properties": { "t": { "const": "SIGNAL_ICE" }, "v": { "const": 1 }, "candidate": { "type": "object" } }
+    },
+    {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["t", "v", "code", "msg"],
+      "properties": { "t": { "const": "SIGNAL_ERR" }, "v": { "const": 1 }, "code": { "type": "string" }, "msg": { "type": "string" } }
+    }
+  ]
+}
+

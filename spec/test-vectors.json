@@ -1,0 +1,45 @@
+{
+  "orderTest": {
+    "orderBody": {
+      "v": 1,
+      "market": "SPOT:LTC/USDT",
+      "side": "BUY",
+      "px": "72.50",
+      "qty": "10.0",
+      "visibility": { "kind": "PUBLIC" },
+      "clientTs": 1700000000000
+    },
+    "traderPubKey": "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "clientNonce": "deadbeefdeadbeefdeadbeefdeadbeef",
+    "expectedOrderId": "REPLACE_ME"
+  },
+  "tapeTest": {
+    "entryNoSig": {
+      "v": 1,
+      "collatorId": "collator-demo",
+      "seq": 1,
+      "prevHash": "",
+      "receivedTs": 1700000000100,
+      "order": {
+        "v": 1,
+        "kind": "NEW",
+        "body": {
+          "v": 1,
+          "market": "SPOT:LTC/USDT",
+          "side": "BUY",
+          "px": "72.50",
+          "qty": "10.0",
+          "visibility": { "kind": "PUBLIC" },
+          "clientTs": 1700000000000
+        },
+        "traderPubKey": "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "clientNonce": "deadbeefdeadbeefdeadbeefdeadbeef",
+        "orderId": "REPLACE_ME",
+        "sigTrader": "00"
+      }
+    },
+    "expectedEntryHash": "REPLACE_ME",
+    "expectedSigPayloadHash": "REPLACE_ME"
+  }
+}
+

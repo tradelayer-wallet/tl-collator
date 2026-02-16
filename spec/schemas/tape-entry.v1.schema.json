@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tl://schemas/tape-entry.v1.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["v", "collatorId", "seq", "prevHash", "entryHash", "receivedTs", "order", "sigCollator"],
+  "properties": {
+    "v": { "const": 1 },
+    "collatorId": { "type": "string", "minLength": 1 },
+    "seq": { "type": "number" },
+    "prevHash": { "type": "string" },
+    "entryHash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "receivedTs": { "type": "number" },
+    "order": { "$ref": "tl://schemas/order-envelope.v1.json" },
+    "sigCollator": { "type": "string", "pattern": "^[0-9a-fA-F]{128}$" }
+  }
+}
+
