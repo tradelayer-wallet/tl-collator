@@ -60,6 +60,22 @@ Infra attestations (optional; used by wallets for curated-mode acceptability):
 - `INFRA_ATTESTATIONS_PATH` (default: `./data/infra-attestations.json`, loaded if the file exists)
 - `INFRA_ATTESTATIONS_JSON` (inline JSON array; if set, overrides file loading)
 
+Generate/sign attestation entries:
+
+```powershell
+npm run infra:sign -- `
+  --ws ws://127.0.0.1:8787/ws `
+  --clearlist-id 42 `
+  --admin-pubkey 02... `
+  --admin-privkey <admin-privkey-hex> `
+  --collator-key ./data/collator.key `
+  --expires-in-days 30 `
+  --out ./data/infra-attestations.json
+```
+
+The command writes/updates an `InfraAttestationV1` array and upserts by
+`(ws, clearlistId, infraId)` to avoid duplicates.
+
 The file/JSON is an array of objects:
 
 ```json

@@ -166,7 +166,15 @@ async function main() {
 
           pc.onicecandidate = (ev: any) => {
             if (!ev.candidate) return;
-            sendSignal({ t: 'SIGNAL_ICE', v: 1, candidate: ev.candidate.toJSON() });
+            const c = typeof ev.candidate.toJSON === 'function'
+              ? ev.candidate.toJSON()
+              : {
+                  candidate: ev.candidate.candidate,
+                  sdpMid: ev.candidate.sdpMid,
+                  sdpMLineIndex: ev.candidate.sdpMLineIndex,
+                  usernameFragment: ev.candidate.usernameFragment,
+                };
+            sendSignal({ t: 'SIGNAL_ICE', v: 1, candidate: c as any });
           };
 
           pc.ondatachannel = (ev: any) => {
