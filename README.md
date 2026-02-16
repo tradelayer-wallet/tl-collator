@@ -76,6 +76,22 @@ npm run infra:sign -- `
 The command writes/updates an `InfraAttestationV1` array and upserts by
 `(ws, clearlistId, infraId)` to avoid duplicates.
 
+Run local failover smoke test:
+
+```powershell
+npm run smoke:failover
+```
+
+Optional overrides:
+
+```powershell
+npm run smoke:failover -- --port-a 8787 --port-b 8788 --retries 3
+```
+
+Note: on some Windows + `wrtc` builds, the child test process can crash during
+native teardown *after* printing a successful JSON result. The wrapper script
+handles this and still returns success when `{ "ok": true }` was emitted.
+
 The file/JSON is an array of objects:
 
 ```json
