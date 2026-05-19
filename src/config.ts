@@ -95,7 +95,7 @@ export function loadConfig(): Config {
   const submitRatePerSec = intEnv('SUBMIT_RPS', intEnv('SUBMIT_RATE_PER_SEC', 2));
 
   return {
-    port: intEnv('PORT', 8787),
+    port: intEnv('PORT', intEnv('SERVER_PORT', 8787)),
     wsPath: process.env.WS_PATH || '/ws',
     dataDir,
     tapePath,

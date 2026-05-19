@@ -9,6 +9,7 @@
     "start": "node --enable-source-maps dist/index.js",
     "test": "npm run build && node --test",
     "infra:sign": "node scripts/sign-infra-attestation.cjs",
+    "rpc:peer": "node scripts/fullnode-rpc-peer.cjs",
     "smoke:failover": "node scripts/smoke-failover-wrapper.cjs"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }
