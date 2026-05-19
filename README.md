@@ -21,17 +21,44 @@ npm run dev
 ```
 
 Default listens on `ws://0.0.0.0:8787/ws`.
+Wallet and peer handshakes must use the full websocket URL, including the `/ws`
+path. If you pass only a host or `host:port` to `COLLATOR_WS`, the peer helper
+now normalizes it to `/ws` automatically.
 
 HTTP endpoints on the same port:
 
 - `GET /health`
 - `GET /manifest` (TL-CSv1 manifest, signed by collator key)
+- `GET /rpc/providers` (currently advertised WebRTC RPC providers)
+- `POST /rpc/route` (HTTP gateway into WebRTC-routed full-node RPC)
+
+Relayer compatibility endpoints are also exposed so older TL-Web wiring can
+keep working without changing its base URL:
+
+- `POST /relayer/rpc/:method`
+- `POST /rpc/:method`
+- `POST /tl_*` legacy listener endpoints
+- `GET /address/validate/:address`
+- `GET /address/balance/:address`
+- `GET /address/faucet/:address`
+- `POST /address/utxo/:address`
+- `GET /chain/info`
+- `GET /tx/:txid`
+- `POST /tx/decode`
+- `POST /tx/sendTx`
+- `POST /tx/buildTx`
+- `POST /tx/multisig`
+- `POST /tx/buildTradeTx`
+- `POST /tx/buildLTCTradeTx`
+- `POST /tx/finalizePsbt`
+- `GET /token/list`
+- `GET /token/:propid`
 
 ## Configure
 
 Environment variables:
 
-- `PORT` (default: `8787`)
+- `PORT` (default: `8787`, `SERVER_PORT` is accepted as a legacy alias)
 - `WS_PATH` (default: `/ws`)
 - `DATA_DIR` (default: `./data`)
 - `TAPE_PATH` (default: `./data/tape.log`)
@@ -54,6 +81,9 @@ Environment variables:
 - `ASN_BLOCK_MODE` (`off|log|reject`, default `off`; effective only if `IP_INTEL_URL` is set)
 - `ASN_BLOCKLIST` (comma-separated ints; used when `ASN_BLOCK_MODE` != `off`)
 - `ICE_SERVERS_JSON` (default: a couple public STUN servers)
+- `TL_RELAY_COMPAT_UPSTREAM_URL` (legacy relayer upstream, defaults to `http://127.0.0.1:3000`)
+- `TL_WALLET_LISTENER_URL` is also honored as the upstream fallback for legacy listener routes
+- `TL_COLLATOR_RPC_SERVICE` / `TL_COLLATOR_RPC_NETWORK` tune routed RPC matching
 
 Infra attestations (optional; used by wallets for curated-mode acceptability):
 
@@ -91,6 +121,42 @@ npm run smoke:failover -- --port-a 8787 --port-b 8788 --retries 3
 Note: on some Windows + `wrtc` builds, the child test process can crash during
 native teardown *after* printing a successful JSON result. The wrapper script
 handles this and still returns success when `{ "ok": true }` was emitted.
+
+### WebRTC-routed full-node RPC
+
+Wallets can call `POST /rpc/route` and let the collator forward the request to
+a WebRTC peer that advertised a matching full-node RPC service over the
+DataChannel. This keeps wallet RPC transport stable while the full-node peer can
+be NATed and reachable only through the gossip/signaling fabric.
+
+Start a local TradeLayer RPC provider peer:
+
+```powershell
+$env:COLLATOR_WS="ws://127.0.0.1:8787/ws"
+$env:RPC_TARGET="http://127.0.0.1:3000"
+$env:RPC_SERVICE="tradelayer.rpc"
+$env:RPC_NETWORK="bitcoin.testnet4"
+$env:RPC_STYLE="path"
+npm run rpc:peer
+```
+
+For Bitcoin Core JSON-RPC, use `RPC_STYLE=jsonrpc`, point `RPC_TARGET` at the
+Core RPC URL, and set `RPC_USER` / `RPC_PASSWORD` if needed.
+
+If another local service already owns `8787`, run the collator with
+`$env:PORT="18878"` and point both `COLLATOR_WS` and wallet route URLs at that
+port. The full handshake URL would then be `ws://127.0.0.1:18878/ws`.
+
+Example routed call:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/rpc/route -Method Post -ContentType 'application/json' -Body (@{
+  service = 'tradelayer.rpc'
+  network = 'bitcoin.testnet4'
+  method = 'tl_getAllBalancesForAddress'
+  params = 'tb1...'
+} | ConvertTo-Json)
+```
 
 The file/JSON is an array of objects:
 
