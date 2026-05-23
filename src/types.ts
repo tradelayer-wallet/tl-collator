@@ -61,6 +61,7 @@ export interface RpcResponseV1 {
   id: string;
   ok: boolean;
   result?: unknown;
+  providerNodeId?: string;
   error?: {
     code?: string;
     message: string;

@@ -135,12 +135,13 @@ async function main() {
   const pendingRpc = new Map<string, {
     requester?: PeerSession;
     provider: PeerSession;
+    providerNodeId: string;
     timer: NodeJS.Timeout;
     resolve?: (res: RpcResponseV1) => void;
     reject?: (err: Error) => void;
   }>();
 
-  const findRpcProvider = (rpcReq: RpcRequestV1, requester?: PeerSession): PeerSession | null => {
+  const findRpcProvider = (rpcReq: RpcRequestV1, requester?: PeerSession): { session: PeerSession; nodeId: string } | null => {
     for (const [sess, advert] of rpcAdvertisements.entries()) {
       if (sess === requester) continue;
       if (!sess.dc || sess.dc.readyState !== 'open') continue;
@@ -148,7 +149,7 @@ async function main() {
         if (service.service !== rpcReq.service) continue;
         if (rpcReq.network && service.network && service.network !== rpcReq.network) continue;
         if (Array.isArray(service.methods) && service.methods.length && !service.methods.includes(rpcReq.method)) continue;
-        return sess;
+        return { session: sess, nodeId: advert.nodeId };
       }
     }
     return null;
@@ -186,8 +187,8 @@ async function main() {
         reject(new Error(res.error?.message || 'routed RPC timed out'));
       }, timeoutMs);
 
-      pendingRpc.set(rpcReq.id, { requester, provider, timer, resolve, reject });
-      provider.sendDc({ t: 'RPC_REQ', v: 1, req: rpcReq });
+      pendingRpc.set(rpcReq.id, { requester, provider: provider.session, providerNodeId: provider.nodeId, timer, resolve, reject });
+      provider.session.sendDc({ t: 'RPC_REQ', v: 1, req: rpcReq });
     });
   };
 
@@ -256,8 +257,9 @@ async function main() {
     if (!pending) return;
     clearTimeout(pending.timer);
     pendingRpc.delete(res.id);
-    if (pending.requester) pending.requester.sendDc({ t: 'RPC_RES', v: 1, res });
-    if (pending.resolve) pending.resolve(res);
+    const routed = pending.providerNodeId ? { ...res, providerNodeId: pending.providerNodeId } : res;
+    if (pending.requester) pending.requester.sendDc({ t: 'RPC_RES', v: 1, res: routed });
+    if (pending.resolve) pending.resolve(routed);
   };
 
   server.on('request', (req, res) => {
