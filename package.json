@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node --enable-source-maps dist/index.js",
     "test": "npm run build && node --test",
+    "test:bitvm": "npm run build && node test/bitvm-status.test.mjs",
     "infra:sign": "node scripts/sign-infra-attestation.cjs",
     "rpc:peer": "node scripts/fullnode-rpc-peer.cjs",
     "smoke:failover": "node scripts/smoke-failover-wrapper.cjs",
