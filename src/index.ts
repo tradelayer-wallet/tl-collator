@@ -17,6 +17,7 @@ import { loadValidators } from './schema.js';
 import { buildManifest } from './manifest.js';
 import { IpIntelClient } from './ipIntel.js';
 import { AuditLog } from './auditLog.js';
+import { buildBitvmStatusFromArtifacts } from './bitvmStatus.js';
 
 function randId(): string {
   return Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2);
@@ -66,6 +67,10 @@ function writeJson(res: http.ServerResponse, statusCode: number, body: unknown):
   res.setHeader('content-type', 'application/json');
   res.statusCode = statusCode;
   res.end(JSON.stringify(body));
+}
+
+function logPortfolioHeartbeat(scope: string, event: string, details: Record<string, unknown>): void {
+  console.log(`[portfolio-heartbeat][collator][${scope}] ${event}`, details);
 }
 
 function normalizeRpcRequest(raw: any): RpcRequestV1 | null {
@@ -156,8 +161,19 @@ async function main() {
   };
 
   const routeRpcRequest = (rpcReq: RpcRequestV1, requester?: PeerSession): Promise<RpcResponseV1> => {
+    logPortfolioHeartbeat('rpc', 'request', {
+      service: rpcReq.service,
+      method: rpcReq.method,
+      network: rpcReq.network || null,
+      requester: requester?.id || null,
+    });
     const provider = findRpcProvider(rpcReq, requester);
     if (!provider) {
+      logPortfolioHeartbeat('rpc', 'no-provider', {
+        service: rpcReq.service,
+        method: rpcReq.method,
+        network: rpcReq.network || null,
+      });
       const res: RpcResponseV1 = {
         id: rpcReq.id,
         ok: false,
@@ -171,9 +187,23 @@ async function main() {
     }
 
     const timeoutMs = Math.max(1000, Math.min(120000, Number(rpcReq.timeoutMs || 12000)));
+    logPortfolioHeartbeat('rpc', 'provider-selected', {
+      service: rpcReq.service,
+      method: rpcReq.method,
+      network: rpcReq.network || null,
+      providerNodeId: provider.nodeId,
+      timeoutMs,
+    });
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pendingRpc.delete(rpcReq.id);
+        logPortfolioHeartbeat('rpc', 'timeout', {
+          service: rpcReq.service,
+          method: rpcReq.method,
+          network: rpcReq.network || null,
+          providerNodeId: provider.nodeId,
+          timeoutMs,
+        });
         const res: RpcResponseV1 = {
           id: rpcReq.id,
           ok: false,
@@ -258,6 +288,12 @@ async function main() {
     clearTimeout(pending.timer);
     pendingRpc.delete(res.id);
     const routed = pending.providerNodeId ? { ...res, providerNodeId: pending.providerNodeId } : res;
+    logPortfolioHeartbeat('rpc', 'response', {
+      id: res.id,
+      ok: !!res.ok,
+      providerNodeId: pending.providerNodeId || null,
+      hasResult: res.result != null,
+    });
     if (pending.requester) pending.requester.sendDc({ t: 'RPC_RES', v: 1, res: routed });
     if (pending.resolve) pending.resolve(routed);
   };
@@ -335,6 +371,9 @@ async function main() {
       }
 
       if (req.method === 'GET' && u.pathname === '/rpc/providers') {
+        logPortfolioHeartbeat('http', '/rpc/providers request', {
+          providerCount: rpcAdvertisements.size,
+        });
         writeJson(res, 200, {
           ok: true,
           providers: Array.from(rpcAdvertisements.values()).map((advert) => ({
@@ -347,6 +386,12 @@ async function main() {
       }
 
       if (u.pathname.startsWith('/tl_')) {
+        if (req.method === 'POST' && u.pathname === '/tl_bitvmStatus') {
+          const body = await readHttpJson(req, cfg.maxMsgBytes);
+          writeJson(res, 200, buildBitvmStatusFromArtifacts(body || {}));
+          return;
+        }
+
         try {
           const body = req.method === 'GET' ? undefined : await readHttpJson(req, cfg.maxMsgBytes);
           const proxied = await proxyLegacyJson(req.method || 'POST', u.pathname, body);
@@ -368,8 +413,23 @@ async function main() {
           return;
         }
         const raw = await readHttpJson(req, cfg.maxMsgBytes);
+        if (method.toLowerCase() === 'tl_bitvmstatus') {
+          writeJson(res, 200, buildBitvmStatusFromArtifacts(raw || {}));
+          return;
+        }
         const params = normalizeCompatParams(raw);
+        logPortfolioHeartbeat('http', '/rpc compat request', {
+          method,
+          pathname: u.pathname,
+          paramsCount: params.length,
+        });
         const compat = await routeCompatRpcRequest(method, params, u.pathname);
+        logPortfolioHeartbeat('http', '/rpc compat response', {
+          method,
+          pathname: u.pathname,
+          statusCode: compat.statusCode,
+          ok: !!compat.body?.data || !!compat.body?.result || !!compat.body?.ok,
+        });
         writeJson(res, compat.statusCode, compat.body);
         return;
       }
@@ -381,7 +441,19 @@ async function main() {
           writeJson(res, 400, { ok: false, error: { code: 'BAD_RPC_REQUEST', message: 'service and method are required' } });
           return;
         }
+        logPortfolioHeartbeat('http', '/rpc/route request', {
+          service: rpcReq.service,
+          method: rpcReq.method,
+          network: rpcReq.network || null,
+        });
         const routed = await routeRpcRequest(rpcReq);
+        logPortfolioHeartbeat('http', '/rpc/route response', {
+          service: rpcReq.service,
+          method: rpcReq.method,
+          network: rpcReq.network || null,
+          ok: routed.ok,
+          errorCode: routed.error?.code || null,
+        });
         writeJson(res, routed.ok ? 200 : 502, routed);
         return;
       }
@@ -394,6 +466,7 @@ async function main() {
             return;
           }
         } catch {}
+        logPortfolioHeartbeat('http', '/chain/info fallback', {});
         const compat = await routeCompatRpcRequest('getblockchaininfo', [], u.pathname);
         writeJson(res, compat.statusCode, compat.body);
         return;
@@ -423,14 +496,25 @@ async function main() {
           writeJson(res, 400, { error: 'Missing address' });
           return;
         }
+        logPortfolioHeartbeat('http', '/address/balance request', {
+          address,
+        });
         try {
           const proxied = await proxyLegacyJson('GET', `/address/balance/${encodeURIComponent(address)}`);
           if (proxied.statusCode < 500) {
+            logPortfolioHeartbeat('http', '/address/balance proxied', {
+              address,
+              statusCode: proxied.statusCode,
+            });
             writeJson(res, proxied.statusCode, proxied.body);
             return;
           }
         } catch {}
         const compat = await routeCompatRpcRequest('tl_getallbalancesforaddress', [address], u.pathname);
+        logPortfolioHeartbeat('http', '/address/balance routed', {
+          address,
+          statusCode: compat.statusCode,
+        });
         writeJson(res, compat.statusCode, compat.body);
         return;
       }
@@ -461,14 +545,26 @@ async function main() {
         }
         const raw = await readHttpJson(req, cfg.maxMsgBytes);
         const pubkey = typeof raw?.pubkey === 'string' && raw.pubkey.trim() ? raw.pubkey.trim() : undefined;
+        logPortfolioHeartbeat('http', '/address/utxo request', {
+          address,
+          hasPubkey: !!pubkey,
+        });
         try {
           const proxied = await proxyLegacyJson('POST', `/address/utxo/${encodeURIComponent(address)}`, { pubkey });
           if (proxied.statusCode < 500) {
+            logPortfolioHeartbeat('http', '/address/utxo proxied', {
+              address,
+              statusCode: proxied.statusCode,
+            });
             writeJson(res, proxied.statusCode, proxied.body);
             return;
           }
         } catch {}
         const compat = await routeCompatRpcRequest('listunspent', [0, 99999999, { address, ...(pubkey ? { pubkey } : {}) }], u.pathname);
+        logPortfolioHeartbeat('http', '/address/utxo routed', {
+          address,
+          statusCode: compat.statusCode,
+        });
         writeJson(res, compat.statusCode, compat.body);
         return;
       }
