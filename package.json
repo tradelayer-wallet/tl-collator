@@ -10,7 +10,8 @@
     "test": "npm run build && node --test",
     "infra:sign": "node scripts/sign-infra-attestation.cjs",
     "rpc:peer": "node scripts/fullnode-rpc-peer.cjs",
-    "smoke:failover": "node scripts/smoke-failover-wrapper.cjs"
+    "smoke:failover": "node scripts/smoke-failover-wrapper.cjs",
+    "smoke:routed-rpc": "npm run build && node scripts/smoke-routed-rpc.cjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",
