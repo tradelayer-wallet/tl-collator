@@ -187,7 +187,8 @@ export function buildBitvmStatusFromArtifacts(query: BitvmStatusQuery = {}): Any
   const settlementKind = str(proceduralSync?.settlement?.settlementKind);
   const fundingAddress = findFundingAddress(parallelUtxoIndex);
   const operatorAddress = str(proceduralSync.operatorAddress);
-  const contextId = chainId && fundingTxid && selectedPathId ? `${chainId}:${fundingTxid}:${selectedPathId}` : null;
+  const fundingOutpoint = fundingTxid && fundingVout !== null ? `${fundingTxid}:${fundingVout}` : null;
+  const contextId = chainId && fundingOutpoint && selectedPathId ? `${chainId}:${fundingOutpoint}:${selectedPathId}` : null;
   const contextHash = contextId
     ? sha256Hex(contextHashPayload({
         chainId,
@@ -255,6 +256,7 @@ export function buildBitvmStatusFromArtifacts(query: BitvmStatusQuery = {}): Any
     redeemSettlementState: 'SETTLED',
     fundingTxid,
     fundingVout,
+    fundingOutpoint,
     fundedAmountLtc,
     settlementRoute,
     settlementKind,

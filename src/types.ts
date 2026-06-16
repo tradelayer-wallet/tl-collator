@@ -55,6 +55,8 @@ export interface RpcRequestV1 {
   method: string;
   params?: unknown;
   timeoutMs?: number;
+  preferredProviderNodeId?: string;
+  sourceEndpoint?: string;
 }
 
 export interface RpcResponseV1 {

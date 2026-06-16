@@ -85,7 +85,46 @@ function normalizeRpcRequest(raw: any): RpcRequestV1 | null {
     method,
     params: raw.params,
     ...(Number.isFinite(Number(raw.timeoutMs)) ? { timeoutMs: Number(raw.timeoutMs) } : {}),
+    ...(typeof raw.sourceEndpoint === 'string' && raw.sourceEndpoint.trim() ? { sourceEndpoint: raw.sourceEndpoint.trim() } : {}),
   };
+}
+
+function summarizeRpcMethod(method: string, params: unknown): Record<string, unknown> {
+  const normalized = String(method || '').trim().toLowerCase();
+  const values = Array.isArray(params) ? params : [];
+  const first = values[0] as any;
+  const second = values[1] as any;
+  const third = values[2] as any;
+
+  if (normalized === 'listunspent' && third && typeof third === 'object') {
+    return {
+      mappedEndpoint: '/address/utxo',
+      address: String(third.address || '').trim(),
+      hasPubkey: !!third.pubkey,
+      minconf: first,
+      maxconf: second,
+    };
+  }
+
+  if (normalized === 'tl_getallbalancesforaddress') {
+    return {
+      mappedEndpoint: '/address/balance',
+      address: String(first || '').trim(),
+    };
+  }
+
+  if (normalized === 'tl_listproperties') {
+    return { mappedEndpoint: '/token/list' };
+  }
+
+  if (normalized === 'tl_getproperty') {
+    return {
+      mappedEndpoint: '/token/:propid',
+      propid: Number(first),
+    };
+  }
+
+  return { paramsCount: values.length };
 }
 
 async function main() {
@@ -147,9 +186,11 @@ async function main() {
   }>();
 
   const findRpcProvider = (rpcReq: RpcRequestV1, requester?: PeerSession): { session: PeerSession; nodeId: string } | null => {
+    const preferredProviderNodeId = String(rpcReq.preferredProviderNodeId || '').trim();
     for (const [sess, advert] of rpcAdvertisements.entries()) {
       if (sess === requester) continue;
       if (!sess.dc || sess.dc.readyState !== 'open') continue;
+      if (preferredProviderNodeId && advert.nodeId !== preferredProviderNodeId) continue;
       for (const service of advert.services) {
         if (service.service !== rpcReq.service) continue;
         if (rpcReq.network && service.network && service.network !== rpcReq.network) continue;
@@ -165,7 +206,9 @@ async function main() {
       service: rpcReq.service,
       method: rpcReq.method,
       network: rpcReq.network || null,
+      preferredProviderNodeId: rpcReq.preferredProviderNodeId || null,
       requester: requester?.id || null,
+      sourceEndpoint: rpcReq.sourceEndpoint || null,
     });
     const provider = findRpcProvider(rpcReq, requester);
     if (!provider) {
@@ -373,6 +416,7 @@ async function main() {
       if (req.method === 'GET' && u.pathname === '/rpc/providers') {
         logPortfolioHeartbeat('http', '/rpc/providers request', {
           providerCount: rpcAdvertisements.size,
+          sourceEndpoint: 'testnet-api',
         });
         writeJson(res, 200, {
           ok: true,
@@ -445,6 +489,8 @@ async function main() {
           service: rpcReq.service,
           method: rpcReq.method,
           network: rpcReq.network || null,
+          sourceEndpoint: rpcReq.sourceEndpoint || null,
+          ...summarizeRpcMethod(rpcReq.method, rpcReq.params),
         });
         const routed = await routeRpcRequest(rpcReq);
         logPortfolioHeartbeat('http', '/rpc/route response', {
@@ -453,6 +499,7 @@ async function main() {
           network: rpcReq.network || null,
           ok: routed.ok,
           errorCode: routed.error?.code || null,
+          providerNodeId: routed.providerNodeId || null,
         });
         writeJson(res, routed.ok ? 200 : 502, routed);
         return;
@@ -498,6 +545,8 @@ async function main() {
         }
         logPortfolioHeartbeat('http', '/address/balance request', {
           address,
+          sourceEndpoint: 'testnet-api',
+          mappedRpc: 'tl_getallbalancesforaddress',
         });
         try {
           const proxied = await proxyLegacyJson('GET', `/address/balance/${encodeURIComponent(address)}`);
@@ -514,6 +563,7 @@ async function main() {
         logPortfolioHeartbeat('http', '/address/balance routed', {
           address,
           statusCode: compat.statusCode,
+          mappedRpc: 'tl_getallbalancesforaddress',
         });
         writeJson(res, compat.statusCode, compat.body);
         return;
@@ -548,6 +598,8 @@ async function main() {
         logPortfolioHeartbeat('http', '/address/utxo request', {
           address,
           hasPubkey: !!pubkey,
+          sourceEndpoint: 'testnet-api',
+          mappedRpc: 'listunspent',
         });
         try {
           const proxied = await proxyLegacyJson('POST', `/address/utxo/${encodeURIComponent(address)}`, { pubkey });
@@ -564,6 +616,7 @@ async function main() {
         logPortfolioHeartbeat('http', '/address/utxo routed', {
           address,
           statusCode: compat.statusCode,
+          mappedRpc: 'listunspent',
         });
         writeJson(res, compat.statusCode, compat.body);
         return;
@@ -596,6 +649,11 @@ async function main() {
           }
         } catch {}
         const compat = await routeCompatRpcRequest('tl_listproperties', [], u.pathname);
+        logPortfolioHeartbeat('http', '/token/list routed', {
+          statusCode: compat.statusCode,
+          mappedRpc: 'tl_listproperties',
+          sourceEndpoint: 'testnet-api',
+        });
         writeJson(res, compat.statusCode, compat.body);
         return;
       }
@@ -699,6 +757,12 @@ async function main() {
           }
         } catch {}
         const compat = await routeCompatRpcRequest('tl_getproperty', [Number(propId)], u.pathname);
+        logPortfolioHeartbeat('http', '/token/:propid routed', {
+          propId: Number(propId),
+          statusCode: compat.statusCode,
+          mappedRpc: 'tl_getproperty',
+          sourceEndpoint: 'testnet-api',
+        });
         writeJson(res, compat.statusCode, compat.body);
         return;
       }
@@ -822,6 +886,14 @@ async function main() {
               }
 
               if (wm.t === 'RPC_ADVERTISE') {
+                logPortfolioHeartbeat('rpc', 'advertise', {
+                  nodeId: wm.nodeId,
+                  services: Array.isArray(wm.services) ? wm.services.map((service) => ({
+                    service: service.service,
+                    network: service.network || null,
+                    methods: Array.isArray(service.methods) ? service.methods.length : null,
+                  })) : [],
+                });
                 rpcAdvertisements.set(sess, {
                   nodeId: wm.nodeId,
                   services: wm.services,
@@ -844,6 +916,13 @@ async function main() {
                   });
                   return;
                 }
+                logPortfolioHeartbeat('rpc', 'wire-request', {
+                  service: rpcReq.service,
+                  method: rpcReq.method,
+                  network: rpcReq.network || null,
+                  sourceEndpoint: rpcReq.sourceEndpoint || null,
+                  ...summarizeRpcMethod(rpcReq.method, rpcReq.params),
+                });
                 void routeRpcRequest(rpcReq, sess).catch((e: any) => {
                   sess.sendDc({
                     t: 'RPC_RES',

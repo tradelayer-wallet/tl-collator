@@ -27,9 +27,10 @@ test('builds desktop-wallet compatible BitVM procedural status from referee arti
   assert.strictEqual(status.procedural.contractId, 'ltc-testnet-epoch-1-1777140673550');
   assert.strictEqual(status.procedural.fundingTxid, '2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe');
   assert.strictEqual(status.procedural.fundingVout, 0);
+  assert.strictEqual(status.procedural.fundingOutpoint, '2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe:0');
   assert.strictEqual(status.procedural.selectedPathId, 'roll');
   assert.strictEqual(status.procedural.selectedPathTxid, '5ca3395ceb0e80fa0b612fd7716ebbcd9027c428fd8c357f374fffc568fe61f2');
-  assert.match(status.procedural.executionContextId, /^litecoin-testnet:[0-9a-f]{64}:roll$/);
+  assert.match(status.procedural.executionContextId, /^litecoin-testnet:[0-9a-f]{64}:0:roll$/);
   assert.match(status.procedural.executionContextHash, /^[0-9a-f]{64}$/);
   assert.deepStrictEqual(status.procedural.contextErrors, []);
 });
