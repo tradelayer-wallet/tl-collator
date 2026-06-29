@@ -121,12 +121,25 @@ function listenerRequestFor(req, target, walletTarget = target) {
   const shaped = firstObjectOrValue(params);
 
   const post = (path, body) => ({ method: 'POST', url: `${target}/${path}`, body });
-  const walletRpc = (rpcMethod) => ({
+  const walletRpc = (rpcMethod, nextParams = req.params) => ({
     method: 'POST',
     url: `${walletTarget}/rpc/${rpcMethod}`,
-    body: { params: req.params == null ? [] : req.params },
+    body: { params: nextParams == null ? [] : nextParams },
     internalRelay: true,
   });
+  const walletListUnspent = () => {
+    const minConfirmations = params[0] ?? 0;
+    const maxConfirmations = params[1] ?? 999999999;
+    const target = params[2];
+    const addresses = Array.isArray(target)
+      ? target
+      : target && typeof target === 'object' && target.address
+        ? [target.address]
+        : target == null
+          ? []
+          : [target];
+    return walletRpc('listunspent', [minConfirmations, maxConfirmations, addresses]);
+  };
   const get = (path, query) => {
     const url = new URL(`${target}/${path}`);
     for (const [key, value] of Object.entries(query || {})) {
@@ -138,7 +151,7 @@ function listenerRequestFor(req, target, walletTarget = target) {
   const postMap = {
     getaddressinfo: () => walletRpc('getaddressinfo'),
     importpubkey: () => walletRpc('importpubkey'),
-    listunspent: () => walletRpc('listunspent'),
+    listunspent: () => walletListUnspent(),
     getblockchaininfo: () => walletRpc('getblockchaininfo'),
     validateaddress: () => walletRpc('validateaddress'),
     tl_getstatesnapshot: () => post('tl_getStateSnapshot', { label: shaped.label || shaped.value || undefined }),
