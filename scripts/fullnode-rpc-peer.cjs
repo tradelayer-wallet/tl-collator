@@ -305,10 +305,37 @@ async function main() {
     const msg = JSON.parse(typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString('utf8'));
     if (msg.t !== 'RPC_REQ') return;
 
+    const startedAt = Date.now();
+    const rpcMethod = msg.req && msg.req.method ? String(msg.req.method) : '(unknown)';
+    console.log(JSON.stringify({
+      event: 'rpc-request',
+      id: msg.req && msg.req.id,
+      method: rpcMethod,
+      network,
+      nodeId: id,
+    }));
+
     try {
       const result = await callUpstream(msg.req);
+      console.log(JSON.stringify({
+        event: 'rpc-reply',
+        id: msg.req && msg.req.id,
+        method: rpcMethod,
+        ok: true,
+        elapsedMs: Date.now() - startedAt,
+        resultType: Array.isArray(result) ? 'array' : typeof result,
+        resultCount: Array.isArray(result) ? result.length : undefined,
+      }));
       dc.send(JSON.stringify({ t: 'RPC_RES', v: 1, res: { id: msg.req.id, ok: true, result } }));
     } catch (e) {
+      console.log(JSON.stringify({
+        event: 'rpc-reply',
+        id: msg.req && msg.req.id,
+        method: rpcMethod,
+        ok: false,
+        elapsedMs: Date.now() - startedAt,
+        error: e && e.message ? e.message : String(e),
+      }));
       dc.send(JSON.stringify({
         t: 'RPC_RES',
         v: 1,
