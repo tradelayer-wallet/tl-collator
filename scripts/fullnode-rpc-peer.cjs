@@ -231,7 +231,16 @@ async function callUpstream(req) {
   const routedHeaders = routed.internalRelay
     ? { ...headers, 'x-tradelayer-internal-relay': '1' }
     : headers;
-  return requestJson(routed.method, routed.url, routed.body, routedHeaders);
+  const out = await requestJson(routed.method, routed.url, routed.body, routedHeaders);
+  if (
+    routed.internalRelay
+    && out
+    && typeof out === 'object'
+    && Object.prototype.hasOwnProperty.call(out, 'data')
+  ) {
+    return out.data;
+  }
+  return out;
 }
 
 async function main() {
