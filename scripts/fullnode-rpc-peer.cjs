@@ -75,7 +75,7 @@ function firstObjectOrValue(params) {
   return first && typeof first === 'object' && !Array.isArray(first) ? first : { value: first, values };
 }
 
-function listenerRequestFor(req, target) {
+function listenerRequestFor(req, target, walletTarget = target) {
   const method = String(req.method || '').trim();
   const normalized = method.toLowerCase();
   const params = asArray(req.params);
@@ -83,6 +83,12 @@ function listenerRequestFor(req, target) {
   const shaped = firstObjectOrValue(params);
 
   const post = (path, body) => ({ method: 'POST', url: `${target}/${path}`, body });
+  const walletRpc = (rpcMethod) => ({
+    method: 'POST',
+    url: `${walletTarget}/rpc/${rpcMethod}`,
+    body: { params: req.params == null ? [] : req.params },
+    internalRelay: true,
+  });
   const get = (path, query) => {
     const url = new URL(`${target}/${path}`);
     for (const [key, value] of Object.entries(query || {})) {
@@ -92,6 +98,11 @@ function listenerRequestFor(req, target) {
   };
 
   const postMap = {
+    getaddressinfo: () => walletRpc('getaddressinfo'),
+    importpubkey: () => walletRpc('importpubkey'),
+    listunspent: () => walletRpc('listunspent'),
+    getblockchaininfo: () => walletRpc('getblockchaininfo'),
+    validateaddress: () => walletRpc('validateaddress'),
     tl_getstatesnapshot: () => post('tl_getStateSnapshot', { label: shaped.label || shaped.value || undefined }),
     tl_getallbalancesforaddress: () => post('tl_getAllBalancesForAddress', { params: shaped.address || shaped.value }),
     tl_listproperties: () => post('tl_listProperties', {}),
@@ -154,6 +165,7 @@ function listenerRequestFor(req, target) {
 
 async function callUpstream(req) {
   const target = env('RPC_TARGET', 'http://127.0.0.1:3000').replace(/\/+$/, '');
+  const walletTarget = env('RPC_WALLET_TARGET', 'http://127.0.0.1:1986').replace(/\/+$/, '');
   const style = env('RPC_STYLE', 'path').toLowerCase();
   const user = process.env.RPC_USER;
   const pass = process.env.RPC_PASSWORD;
@@ -177,8 +189,11 @@ async function callUpstream(req) {
     return out ? out.result : null;
   }
 
-  const routed = listenerRequestFor(req, target);
-  return requestJson(routed.method, routed.url, routed.body, headers);
+  const routed = listenerRequestFor(req, target, walletTarget);
+  const routedHeaders = routed.internalRelay
+    ? { ...headers, 'x-tradelayer-internal-relay': '1' }
+    : headers;
+  return requestJson(routed.method, routed.url, routed.body, routedHeaders);
 }
 
 async function main() {
