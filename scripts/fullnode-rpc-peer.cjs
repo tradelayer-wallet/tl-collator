@@ -39,6 +39,12 @@ function nodeId() {
   return env('RPC_NODE_ID', `fullnode-${crypto.randomBytes(8).toString('hex')}`);
 }
 
+function advertiseRpc(dc, advert) {
+  if (!dc || dc.readyState !== 'open') return false;
+  dc.send(JSON.stringify(advert));
+  return true;
+}
+
 function fetchCompat(url, options = {}) {
   if (typeof fetch === 'function') {
     return fetch(url, options);
@@ -265,6 +271,7 @@ async function main() {
     'tl_getStateSnapshot',
   ]);
   const label = env('RPC_LABEL', 'local full-node RPC');
+  const advertiseIntervalMs = Math.max(5000, Number(env('RPC_ADVERTISE_INTERVAL_MS', '15000')) || 15000);
   const id = nodeId();
 
   const ws = new WS(wsUrl);
@@ -287,6 +294,20 @@ async function main() {
     ),
   });
   const dc = pc.createDataChannel('tl-bb', { ordered: true });
+  let advertiseTimer = null;
+
+  const shutdown = (reason) => {
+    console.error(`rpc-peer shutdown: ${reason}`);
+    if (advertiseTimer) clearInterval(advertiseTimer);
+    try { dc.close(); } catch {}
+    try { pc.close(); } catch {}
+    try { ws.close(); } catch {}
+    process.exit(0);
+  };
+
+  ws.on('close', () => shutdown('signaling websocket closed'));
+  ws.on('error', (error) => shutdown(`signaling websocket error: ${error && error.message ? error.message : error}`));
+  dc.onclose = () => shutdown('data channel closed');
 
   ws.on('message', async (buf) => {
     const msg = JSON.parse(String(buf));
@@ -379,12 +400,25 @@ async function main() {
   });
 
   dc.send(JSON.stringify({ t: 'HELLO', v: 1, clientId, want: ['RPC'] }));
-  dc.send(JSON.stringify({
+  const rpcAdvert = {
     t: 'RPC_ADVERTISE',
     v: 1,
     nodeId: id,
     services: [{ service, network, methods, label }],
-  }));
+  };
+  advertiseRpc(dc, rpcAdvert);
+  advertiseTimer = setInterval(() => {
+    const ok = advertiseRpc(dc, rpcAdvert);
+    if (ok) {
+      console.log(JSON.stringify({
+        event: 'rpc-advertise',
+        nodeId: id,
+        service,
+        network,
+        methodsCount: methods.length,
+      }));
+    }
+  }, advertiseIntervalMs);
 
   console.log(JSON.stringify({ ok: true, ws: wsUrl, nodeId: id, service, network, target: env('RPC_TARGET', 'http://127.0.0.1:3000') }, null, 2));
 }
