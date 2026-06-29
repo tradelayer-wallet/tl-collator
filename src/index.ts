@@ -133,6 +133,7 @@ async function main() {
   const startedAt = Date.now();
   const compatRpcService = process.env.TL_COLLATOR_RPC_SERVICE || 'tradelayer.rpc';
   const compatRpcNetwork = process.env.TL_COLLATOR_RPC_NETWORK || '';
+  const rpcAdvertTtlMs = Math.max(15000, Number(process.env.TL_COLLATOR_RPC_ADVERT_TTL_MS || 45000) || 45000);
   const legacyRelayerBaseUrl = String(
     process.env.TL_RELAY_COMPAT_UPSTREAM_URL ||
     process.env.TL_WALLET_LISTENER_URL ||
@@ -185,7 +186,25 @@ async function main() {
     reject?: (err: Error) => void;
   }>();
 
+  const pruneRpcAdvertisements = (): void => {
+    const now = Date.now();
+    for (const [sess, advert] of rpcAdvertisements.entries()) {
+      const dcOpen = !!sess.dc && sess.dc.readyState === 'open';
+      const fresh = now - Number(advert.lastSeenTs || 0) <= rpcAdvertTtlMs;
+      if (!dcOpen || !fresh) {
+        logPortfolioHeartbeat('rpc', 'provider-pruned', {
+          providerNodeId: advert.nodeId,
+          dcOpen,
+          ageMs: now - Number(advert.lastSeenTs || 0),
+          ttlMs: rpcAdvertTtlMs,
+        });
+        rpcAdvertisements.delete(sess);
+      }
+    }
+  };
+
   const findRpcProvider = (rpcReq: RpcRequestV1, requester?: PeerSession): { session: PeerSession; nodeId: string } | null => {
+    pruneRpcAdvertisements();
     const preferredProviderNodeId = String(rpcReq.preferredProviderNodeId || '').trim();
     for (const [sess, advert] of rpcAdvertisements.entries()) {
       if (sess === requester) continue;
@@ -240,12 +259,17 @@ async function main() {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pendingRpc.delete(rpcReq.id);
+        const advert = rpcAdvertisements.get(provider.session);
+        if (advert && advert.nodeId === provider.nodeId) {
+          rpcAdvertisements.delete(provider.session);
+        }
         logPortfolioHeartbeat('rpc', 'timeout', {
           service: rpcReq.service,
           method: rpcReq.method,
           network: rpcReq.network || null,
           providerNodeId: provider.nodeId,
           timeoutMs,
+          providerEvicted: !!advert,
         });
         const res: RpcResponseV1 = {
           id: rpcReq.id,
@@ -356,6 +380,7 @@ async function main() {
       }
 
       if (req.method === 'GET' && u.pathname === '/health') {
+        pruneRpcAdvertisements();
         writeJson(res, 200, {
           ok: true,
           collatorId,
@@ -414,6 +439,7 @@ async function main() {
       }
 
       if (req.method === 'GET' && u.pathname === '/rpc/providers') {
+        pruneRpcAdvertisements();
         logPortfolioHeartbeat('http', '/rpc/providers request', {
           providerCount: rpcAdvertisements.size,
           sourceEndpoint: 'testnet-api',
