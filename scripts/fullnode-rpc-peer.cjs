@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 const crypto = require('node:crypto');
+const http = require('node:http');
+const https = require('node:https');
 const wrtc = require('wrtc');
 const WS = require('ws');
 
@@ -37,8 +39,44 @@ function nodeId() {
   return env('RPC_NODE_ID', `fullnode-${crypto.randomBytes(8).toString('hex')}`);
 }
 
+function fetchCompat(url, options = {}) {
+  if (typeof fetch === 'function') {
+    return fetch(url, options);
+  }
+
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const transport = parsed.protocol === 'https:' ? https : http;
+    const body = options.body == null ? undefined : Buffer.from(String(options.body));
+    const headers = { ...(options.headers || {}) };
+    if (body && !headers['content-length'] && !headers['Content-Length']) {
+      headers['content-length'] = String(body.length);
+    }
+
+    const req = transport.request(parsed, {
+      method: options.method || 'GET',
+      headers,
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          text: async () => text,
+        });
+      });
+    });
+
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
 async function postJson(url, body, headers = {}) {
-  const res = await fetch(url, {
+  const res = await fetchCompat(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
@@ -52,7 +90,7 @@ async function postJson(url, body, headers = {}) {
 }
 
 async function requestJson(method, url, body, headers = {}) {
-  const res = await fetch(url, {
+  const res = await fetchCompat(url, {
     method,
     headers: { 'content-type': 'application/json', ...headers },
     body: method === 'GET' || method === 'HEAD' ? undefined : JSON.stringify(body),
