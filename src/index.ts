@@ -213,7 +213,11 @@ async function main() {
       for (const service of advert.services) {
         if (service.service !== rpcReq.service) continue;
         if (rpcReq.network && service.network && service.network !== rpcReq.network) continue;
-        if (Array.isArray(service.methods) && service.methods.length && !service.methods.includes(rpcReq.method)) continue;
+        if (Array.isArray(service.methods) && service.methods.length) {
+          const requestedMethod = String(rpcReq.method || '').trim().toLowerCase();
+          const advertised = service.methods.map((method) => String(method || '').trim().toLowerCase());
+          if (!advertised.includes(requestedMethod)) continue;
+        }
         return { session: sess, nodeId: advert.nodeId };
       }
     }

@@ -12,7 +12,8 @@
     "infra:sign": "node scripts/sign-infra-attestation.cjs",
     "rpc:peer": "node scripts/fullnode-rpc-peer.cjs",
     "smoke:failover": "node scripts/smoke-failover-wrapper.cjs",
-    "smoke:routed-rpc": "npm run build && node scripts/smoke-routed-rpc.cjs"
+    "smoke:routed-rpc": "npm run build && node scripts/smoke-routed-rpc.cjs",
+    "smoke:live-flow": "npm run build && node scripts/smoke-live-flow.cjs"
   },
   "dependencies": {
     "ajv": "^8.17.1",
