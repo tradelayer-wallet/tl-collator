@@ -1,16 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { LruSet } from '../dist/lru.js';
+import { LruMap } from '../dist/lru.js';
 
-test('LruSet evicts oldest', () => {
-  const s = new LruSet(2);
-  s.add('a');
-  s.add('b');
-  assert.equal(s.has('a'), true);
-  s.add('c');
-  assert.equal(s.has('a'), false);
-  assert.equal(s.has('b'), true);
-  assert.equal(s.has('c'), true);
+test('LruMap evicts the least recently used key', () => {
+  const m = new LruMap(2);
+  m.set('a', 1);
+  m.set('b', 2);
+  assert.equal(m.get('a'), 1); // refresh 'a'
+  m.set('c', 3); // evicts 'b'
+  assert.equal(m.get('b'), undefined);
+  assert.equal(m.get('a'), 1);
+  assert.equal(m.get('c'), 3);
 });
-

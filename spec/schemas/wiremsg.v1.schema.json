@@ -30,7 +30,7 @@
       "properties": {
         "t": { "const": "TAPE_SUB" },
         "v": { "const": 1 },
-        "fromSeq": { "type": "number" }
+        "fromSeq": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 }
       }
     },
     {
@@ -50,7 +50,8 @@
       "properties": {
         "t": { "const": "TAPE_END" },
         "v": { "const": 1 },
-        "lastSeq": { "type": "number" }
+        "lastSeq": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "fromSeq": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 }
       }
     },
     {

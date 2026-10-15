@@ -1,0 +1,235 @@
+{
+  "kind": "m1_parallel_utxo_index",
+  "createdAt": "2026-04-25T18:15:08.267Z",
+  "chain": {
+    "chainId": "litecoin-testnet",
+    "network": "test",
+    "rpcUrl": "http://127.0.0.1:19332"
+  },
+  "anchors": {
+    "fundingTxid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+    "fundingOutpoint": {
+      "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "vout": 0,
+      "valueLtc": "0.00162",
+      "valueSats": "162000"
+    },
+    "timeoutSpendTxid": "68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062"
+  },
+  "transactions": [
+    {
+      "txRole": "funding",
+      "kind": "broadcast",
+      "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "wtxid": "43ce5e5bdd786a3354c28f85192b3d85424c1ce4ff98e0dbeb118d0ab51f63b9",
+      "locktime": 0,
+      "inputs": [
+        {
+          "txid": "814cc4cdc76a603a1a86dccaaa4339eb15960f5504138c67cbf16013ba79e749",
+          "vout": 0,
+          "valueSats": null,
+          "address": null,
+          "role": "funding-input"
+        },
+        {
+          "txid": "814cc4cdc76a603a1a86dccaaa4339eb15960f5504138c67cbf16013ba79e749",
+          "vout": 2,
+          "valueSats": null,
+          "address": null,
+          "role": "funding-input"
+        }
+      ],
+      "outputs": [
+        {
+          "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+          "vout": 0,
+          "valueSats": "162000",
+          "address": "tltc1q7gmk5cqdhvm7w5kyjqlud08jevdmfaknlf989xymph3ykj8pju3qvltc48",
+          "role": "funding-output"
+        }
+      ],
+      "sourceArtifactKinds": [
+        "m1_funding_psbt",
+        "m1_funding_finalized"
+      ]
+    },
+    {
+      "txRole": "settle-gain",
+      "kind": "candidate-settlement",
+      "txid": "ffd65f45f345a9f69ea832c42c34382f91ed64ebd68188e3641e9f437c277bae",
+      "wtxid": null,
+      "locktime": 4685058,
+      "spendsOutpoint": {
+        "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+        "vout": 0,
+        "valueSats": null,
+        "address": null,
+        "role": "funding-output"
+      },
+      "outputs": [
+        {
+          "txid": "ffd65f45f345a9f69ea832c42c34382f91ed64ebd68188e3641e9f437c277bae",
+          "vout": null,
+          "valueSats": "8100",
+          "address": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+          "role": "winner-sweep"
+        },
+        {
+          "txid": "ffd65f45f345a9f69ea832c42c34382f91ed64ebd68188e3641e9f437c277bae",
+          "vout": null,
+          "valueSats": "153900",
+          "address": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "role": "refund-remainder"
+        }
+      ],
+      "sourceArtifactKinds": [
+        "m1_cet_skeletons",
+        "m1_funding_psbt"
+      ]
+    },
+    {
+      "txRole": "settle-loss",
+      "kind": "candidate-settlement",
+      "txid": "f4279d96d2440f688e83fbbcb09aa153901f9acb15a2edb063b44784d73e8af8",
+      "wtxid": null,
+      "locktime": 4685058,
+      "spendsOutpoint": {
+        "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+        "vout": 0,
+        "valueSats": null,
+        "address": null,
+        "role": "funding-output"
+      },
+      "outputs": [
+        {
+          "txid": "f4279d96d2440f688e83fbbcb09aa153901f9acb15a2edb063b44784d73e8af8",
+          "vout": null,
+          "valueSats": "8100",
+          "address": "tltc1qcn2tp4wr057kzpjx2vue4hcexrhlllz6k6tx4h",
+          "role": "winner-sweep"
+        },
+        {
+          "txid": "f4279d96d2440f688e83fbbcb09aa153901f9acb15a2edb063b44784d73e8af8",
+          "vout": null,
+          "valueSats": "153900",
+          "address": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "role": "refund-remainder"
+        }
+      ],
+      "sourceArtifactKinds": [
+        "m1_cet_skeletons",
+        "m1_funding_psbt"
+      ]
+    },
+    {
+      "txRole": "roll",
+      "kind": "candidate-timeout",
+      "txid": "5ca3395ceb0e80fa0b612fd7716ebbcd9027c428fd8c357f374fffc568fe61f2",
+      "wtxid": null,
+      "locktime": 4685346,
+      "spendsOutpoint": {
+        "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+        "vout": 0,
+        "valueSats": null,
+        "address": null,
+        "role": "funding-output"
+      },
+      "outputs": [
+        {
+          "txid": "5ca3395ceb0e80fa0b612fd7716ebbcd9027c428fd8c357f374fffc568fe61f2",
+          "vout": null,
+          "valueSats": "153900",
+          "address": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "role": "winner-sweep"
+        },
+        {
+          "txid": "5ca3395ceb0e80fa0b612fd7716ebbcd9027c428fd8c357f374fffc568fe61f2",
+          "vout": null,
+          "valueSats": "8100",
+          "address": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "role": "refund-remainder"
+        }
+      ],
+      "sourceArtifactKinds": [
+        "m1_cet_skeletons",
+        "m1_funding_psbt"
+      ]
+    },
+    {
+      "txRole": "timeout-proof-spend",
+      "kind": "observed-timeout-spend",
+      "txid": "68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062",
+      "wtxid": null,
+      "locktime": null,
+      "spendsOutpoint": {
+        "txid": null,
+        "vout": null,
+        "valueSats": null,
+        "address": null,
+        "role": "funding-output"
+      },
+      "outputs": [
+        {
+          "txid": "68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062",
+          "vout": null,
+          "valueSats": "715863",
+          "address": "tltc1qwghcxqafwvhwj63sdetxck9uaqd9pzu255fsqw",
+          "role": "winner-sweep"
+        },
+        {
+          "txid": "68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062",
+          "vout": null,
+          "valueSats": "37677",
+          "address": "tltc1qwghcxqafwvhwj63sdetxck9uaqd9pzu255fsqw",
+          "role": "refund-remainder"
+        }
+      ],
+      "sourceArtifactKinds": [
+        "m1_expiry_timeout_testnet_proof"
+      ]
+    }
+  ],
+  "semanticRefs": [
+    {
+      "refRole": "expiry-deposit",
+      "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "amountSats": "162000",
+      "artifactKind": "m1_expiry_redemption"
+    },
+    {
+      "refRole": "expiry-redemption-ledger",
+      "txid": null,
+      "amountSats": "153900",
+      "settlementKind": "timeout-refund",
+      "artifactKind": "m1_expiry_redemption"
+    }
+  ],
+  "sourceArtifacts": {
+    "fundingPsbt": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_psbt_latest.json",
+      "kind": "m1_funding_psbt",
+      "hash": "e52227c88b8f6e0b43983fa8e332f815df813728aab109876b5d3e2d2003c316"
+    },
+    "fundingFinal": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_finalized_latest.json",
+      "kind": "m1_funding_finalized",
+      "hash": "0284c3aa0a45a84fd4fe5fb0bc9cfc96fd74e7628bacc4184a8ec42e410f412f"
+    },
+    "cetSkeletons": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_cet_skeletons_latest.json",
+      "kind": "m1_cet_skeletons",
+      "hash": "5b319e810708e9a86ea1a13b0e3a3000fb3e54c7efe70f43ee9953425a17b0ea"
+    },
+    "expiryRedemption": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_expiry_redemption_latest.json",
+      "kind": "m1_expiry_redemption",
+      "hash": "45b34ddd6be93d28193c0d391d5fbb8f2a34364dde55722034fbfb9bd08e03fa"
+    },
+    "timeoutProof": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_expiry_timeout_testnet_proof.json",
+      "kind": "bitvm-expiry-timeout-proof",
+      "hash": "5710509b34b59942890c3532e8d9a938f1d99414cb1d13fe7fd60f3af9c95de3"
+    }
+  },
+  "artifactHash": "9a711d63ba3d8f35359b0000877733d351faef1a1a5d477033ac672191112060"
+}

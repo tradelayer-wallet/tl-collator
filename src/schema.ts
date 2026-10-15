@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 
 import type { SignalMsg, WireMsg } from './types.js';
 import type { OrderEnvelopeV1 } from './types.js';
+import { findCanonicalViolation } from './canonical.js';
 
 export interface SchemaValidators {
   validateSignalMsg: (x: any) => x is SignalMsg;
@@ -63,6 +64,15 @@ export function loadValidators(): SchemaValidators {
       return ok;
     },
     validateOrderEnvelope: (x: any): x is OrderEnvelopeV1 => {
+      // Reject values TL-Canon cannot represent anywhere in the envelope
+      // (incl. the open-ended body): prototype-pollution keys, non-safe-integer
+      // numbers and lone surrogates. Runs before schema validation so nothing
+      // unhashable or unsafe reaches hashing or downstream object handling.
+      const violation = findCanonicalViolation(x);
+      if (violation !== null) {
+        lastErrors = [{ instancePath: '', message: violation, params: {} }];
+        return false;
+      }
       const ok = !!vOrder(x);
       lastErrors = ok ? null : (vOrder.errors || null);
       return ok;

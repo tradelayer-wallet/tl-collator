@@ -3,6 +3,7 @@
   "$id": "tl://schemas/order-envelope.v1.json",
   "type": "object",
   "additionalProperties": true,
+  "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
   "required": ["v", "kind", "body", "traderPubKey", "clientNonce", "orderId", "sigTrader"],
   "properties": {
     "v": { "const": 1 },
@@ -10,6 +11,7 @@
     "body": {
       "type": "object",
       "additionalProperties": true,
+      "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
       "required": ["v", "market", "side", "px", "qty", "visibility", "clientTs"],
       "properties": {
         "v": { "const": 1 },
@@ -18,31 +20,34 @@
         "px": { "type": "string" },
         "qty": { "type": "string" },
         "tif": { "enum": ["GTC", "IOC", "FOK"] },
-        "expiryTs": { "type": "number" },
+        "expiryTs": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
         "visibility": {
           "oneOf": [
             {
               "type": "object",
               "additionalProperties": true,
+              "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
               "required": ["kind"],
               "properties": { "kind": { "const": "PUBLIC" } }
             },
             {
               "type": "object",
               "additionalProperties": true,
+              "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
               "required": ["kind", "groupId"],
               "properties": { "kind": { "const": "CLEARLIST" }, "groupId": { "type": "string", "minLength": 1 } }
             },
             {
               "type": "object",
               "additionalProperties": true,
+              "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
               "required": ["kind", "groupId"],
               "properties": { "kind": { "const": "DARK" }, "groupId": { "type": "string", "minLength": 1 } }
             }
           ]
         },
         "clearlistTag": { "type": "string" },
-        "clientTs": { "type": "number" }
+        "clientTs": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 }
       }
     },
     "traderPubKey": { "type": "string", "pattern": "^[0-9a-fA-F]+$" },

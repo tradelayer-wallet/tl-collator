@@ -76,7 +76,7 @@ export type WireMsg =
   | { t: 'SUBMIT'; v: 1; order: OrderEnvelopeV1 }
   | { t: 'TAPE_SUB'; v: 1; fromSeq?: number }
   | { t: 'TAPE_ENTRY'; v: 1; entry: TapeEntryV1 }
-  | { t: 'TAPE_END'; v: 1; lastSeq: number }
+  | { t: 'TAPE_END'; v: 1; lastSeq: number; fromSeq?: number }
   | { t: 'RPC_ADVERTISE'; v: 1; nodeId: string; services: RpcServiceAdvertisementV1[] }
   | { t: 'RPC_REQ'; v: 1; req: RpcRequestV1 }
   | { t: 'RPC_RES'; v: 1; res: RpcResponseV1 }

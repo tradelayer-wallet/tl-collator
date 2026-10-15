@@ -4,16 +4,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const ecc = require('tiny-secp256k1');
+// TL-Canon comes from the collator's own build (src/canonical.ts), so the scripts and the
+// collator cannot disagree. Run `npm run build` first; dist/ is loaded on first use.
+let stableStringify;
 
 function usage() {
   console.log(
     [
       'Usage:',
-      '  node scripts/sign-infra-attestation.cjs \\',
+      '  ADMIN_KEY_FILE=/path/to/admin.key node scripts/sign-infra-attestation.cjs \\',
       '    --ws ws://127.0.0.1:8787/ws \\',
       '    --clearlist-id 42 \\',
       '    --admin-pubkey <hex-compressed-pubkey> \\',
-      '    --admin-privkey <hex-privkey> \\',
       '    [--collator-key ./data/collator.key] \\',
       '    [--issued-at 1760000000] \\',
       '    [--expires-at 1762592000] \\',
@@ -21,6 +23,11 @@ function usage() {
       '    [--nonce <hex>] \\',
       '    [--kind COLLATOR_APPROVAL|BUNDLER_APPROVAL] \\',
       '    [--out ./data/infra-attestations.json]',
+      '',
+      'Admin private key sources (first match wins):',
+      '  1. ADMIN_KEY_FILE env var: path to a file containing the 32-byte hex key',
+      '  2. ADMIN_KEY env var: raw 32-byte hex key (or a file path)',
+      '  3. --admin-privkey <hex|path>: DEPRECATED, exposed via ps/shell history',
       '',
       'Notes:',
       '  - If --out exists, the attestation is upserted by (ws, clearlistId, infraId).',
@@ -50,20 +57,7 @@ function sha256HexUtf8(s) {
   return crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 }
 
-function canonicalize(v) {
-  if (v === null) return null;
-  if (Array.isArray(v)) return v.map(canonicalize);
-  if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
-    const out = {};
-    for (const k of Object.keys(v).sort()) out[k] = canonicalize(v[k]);
-    return out;
-  }
-  return v;
-}
 
-function stableStringify(v) {
-  return JSON.stringify(canonicalize(v));
-}
 
 function readPrivHex(rawOrPath) {
   const raw = String(rawOrPath || '').trim();
@@ -85,6 +79,24 @@ function readPubHex(rawOrPath) {
     throw new Error(`invalid public key in file: ${filePath}`);
   }
   return fileData.toLowerCase();
+}
+
+// L2: prefer the admin private key from env/file; the CLI argument remains as a
+// deprecated fallback so existing usage keeps working (with a warning).
+function resolveAdminPrivKey(args) {
+  const envKeyFile = String(process.env.ADMIN_KEY_FILE || '').trim();
+  if (envKeyFile) return readPrivHex(envKeyFile);
+  const envKey = String(process.env.ADMIN_KEY || '').trim();
+  if (envKey) return readPrivHex(envKey);
+  const cliKey = args['admin-privkey'];
+  if (typeof cliKey === 'string' && cliKey.trim()) {
+    console.error(
+      'WARNING: --admin-privkey on the command line is deprecated (visible in ps/shell history). ' +
+      'Set ADMIN_KEY_FILE=/path/to/admin.key (or ADMIN_KEY=<hex>) instead.'
+    );
+    return readPrivHex(cliKey);
+  }
+  throw new Error('missing admin private key: set ADMIN_KEY_FILE (path) or ADMIN_KEY (hex); --admin-privkey is a deprecated fallback');
 }
 
 function main() {
@@ -111,7 +123,7 @@ function main() {
   const infraId = sha256HexUtf8(infraPubKey);
 
   const adminPubKey = readPubHex(args['admin-pubkey']);
-  const adminPrivKey = readPrivHex(args['admin-privkey']);
+  const adminPrivKey = resolveAdminPrivKey(args);
 
   const issuedAt = Number.isFinite(Number(args['issued-at']))
     ? Number(args['issued-at'])
@@ -168,9 +180,12 @@ function main() {
   console.log(JSON.stringify({ ok: true, out: outPath, entry }, null, 2));
 }
 
-try {
-  main();
-} catch (e) {
-  console.error(String(e && e.message ? e.message : e));
-  process.exit(1);
-}
+(async () => {
+  try {
+    ({ stableStringify } = await import('../dist/canonical.js'));
+    main();
+  } catch (e) {
+    console.error(String(e && e.message ? e.message : e));
+    process.exit(1);
+  }
+})();
