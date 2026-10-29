@@ -79,7 +79,7 @@ fn hex_bytes(s: &str, expected: usize) -> Result<Vec<u8>, VerifyError> {
     }
     Ok(output)
 }
-fn public_key(s: &str) -> Result<PublicKey, VerifyError> {
+pub(crate) fn public_key(s: &str) -> Result<PublicKey, VerifyError> {
     let size = match s.len() {
         66 => 33,
         130 => 65,
@@ -337,10 +337,23 @@ impl VerifiedReplay {
     /// disk mutation. A truncated final record and damaged interior refuse
     /// startup. No checkpoint is returned on failure.
     pub fn from_ndjson<R: BufRead>(
+        input: R,
+        collator_id: impl Into<String>,
+        collator_pubkey_hex: &str,
+        max_entries: usize,
+    ) -> Result<Self, VerifyError> {
+        Self::from_ndjson_with_hook(input, collator_id, collator_pubkey_hex, max_entries, |_| {})
+    }
+
+    /// Same bounded, fully verified parser, with one post-verification callback
+    /// per accepted record. Used to compare an independently signed witness
+    /// against an exact historical prefix without storing every hash.
+    pub(crate) fn from_ndjson_with_hook<R: BufRead, F: FnMut(&Checkpoint)>(
         mut input: R,
         collator_id: impl Into<String>,
         collator_pubkey_hex: &str,
         max_entries: usize,
+        mut on_verified: F,
     ) -> Result<Self, VerifyError> {
         let mut replay = Self::new(collator_id, collator_pubkey_hex, max_entries)?;
         let mut line = Vec::new();
@@ -367,7 +380,8 @@ impl VerifiedReplay {
                 }
                 let text =
                     std::str::from_utf8(&line[..end]).map_err(|_| VerifyError::Invalid("UTF-8"))?;
-                replay.apply_line(text)?;
+                let checkpoint = replay.apply_line(text)?;
+                on_verified(&checkpoint);
                 line.clear();
             }
         }

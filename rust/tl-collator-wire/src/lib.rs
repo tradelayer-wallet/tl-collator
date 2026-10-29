@@ -5,6 +5,7 @@
 
 pub mod durable;
 pub mod verify;
+pub mod witness;
 
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
