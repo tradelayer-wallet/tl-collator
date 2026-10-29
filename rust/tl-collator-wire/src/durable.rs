@@ -2,12 +2,13 @@
 //! This module does not sign or broadcast. The operator must supply trusted paths,
 //! a pinned collator pubkey and local POSIX filesystem semantics.
 use crate::verify::{Checkpoint, VerifiedReplay, VerifyError};
+use crate::witness::{VerifiedReceipt, WitnessError, WitnessScope};
 use crate::MAX_INPUT_BYTES;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
     fs::{self, File, OpenOptions, TryLockError},
-    io::{self, BufRead, BufReader, Seek, SeekFrom, Write},
+    io::{self, BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -38,6 +39,9 @@ pub enum DurableError {
     NeedsRecovery,
     CommitUnknown,
     InjectedWriteFailure,
+    Witness(WitnessError),
+    AheadOfWitness,
+    RemoteUncertain,
 }
 impl fmt::Display for DurableError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -53,6 +57,11 @@ impl From<io::Error> for DurableError {
 impl From<VerifyError> for DurableError {
     fn from(err: VerifyError) -> Self {
         Self::Verify(err)
+    }
+}
+impl From<WitnessError> for DurableError {
+    fn from(err: WitnessError) -> Self {
+        Self::Witness(err)
     }
 }
 
@@ -201,6 +210,7 @@ fn scan(
     key: &str,
     max_entries: usize,
     anchor: Option<&Anchor>,
+    witnessed: Option<&VerifiedReceipt>,
 ) -> Result<(VerifiedReplay, u64, u64), DurableError> {
     tape.seek(SeekFrom::Start(0))?;
     let mut reader = BufReader::new(tape.try_clone()?);
@@ -209,6 +219,8 @@ fn scan(
     let mut full_bytes = 0u64;
     let mut torn_bytes = 0u64;
     let mut anchor_seen = anchor.is_some_and(|a| a.seq == 0 && a.hash.is_empty() && a.orders == 0);
+    let mut witness_seen = witnessed.is_some_and(|r| r.seq() == 0 && r.head_hash().is_empty());
+    let mut witness_fork = false;
     while let Some(complete) = next_record(&mut reader, &mut line)? {
         if !complete {
             torn_bytes = line.len() as u64;
@@ -220,7 +232,16 @@ fn scan(
         }
         let text = std::str::from_utf8(&line[..end])
             .map_err(|_| DurableError::Verify(VerifyError::Invalid("UTF-8")))?;
-        verified.apply_line(text)?;
+        let cp = verified.apply_line(text)?;
+        if let Some(receipt) = witnessed {
+            if cp.last_seq == receipt.seq() {
+                if cp.last_hash == receipt.head_hash() && cp.seen_orders == receipt.seen_orders() {
+                    witness_seen = true;
+                } else {
+                    witness_fork = true;
+                }
+            }
+        }
         full_bytes = full_bytes
             .checked_add(line.len() as u64)
             .ok_or(DurableError::TooLarge)?;
@@ -237,8 +258,53 @@ fn scan(
     if anchor.is_some() && !anchor_seen {
         return Err(DurableError::AnchorMismatch);
     }
+    if witness_fork {
+        return Err(DurableError::Witness(WitnessError::Fork));
+    }
+    if let Some(receipt) = witnessed {
+        if !witness_seen {
+            return Err(DurableError::Witness(WitnessError::Rollback));
+        }
+        if verified.checkpoint().last_seq > receipt.seq() {
+            return Err(DurableError::AheadOfWitness);
+        }
+    }
     Ok((verified, full_bytes, torn_bytes))
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WitnessTransportError {
+    Unavailable,
+}
+
+pub trait WitnessTransport {
+    /// The witness returns its actual signed latest head, not one chosen by the
+    /// caller. Transport authentication, key pinning and byte caps are required.
+    fn latest(&mut self, challenge: &str) -> Result<String, WitnessTransportError>;
+    /// Atomically compare-and-swap a fully signed next entry and return a
+    /// newly signed challenge-bound receipt for the resulting head.
+    fn cas_signed(
+        &mut self,
+        expected: &Checkpoint,
+        signed_entry: &str,
+        challenge: &str,
+    ) -> Result<String, WitnessTransportError>;
+}
+fn fresh_challenge() -> Result<String, DurableError> {
+    #[cfg(not(unix))]
+    return Err(DurableError::UnsupportedFilesystem);
+    let mut bytes = [0u8; 32];
+    File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+    if bytes.iter().all(|b| *b == 0) {
+        return Err(DurableError::RemoteUncertain);
+    }
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+type WitnessGate<'a> = Option<(
+    &'a WitnessScope,
+    &'a mut dyn FnMut(&str) -> Result<String, DurableError>,
+)>;
 
 /// Holds an OS-level exclusive file lock for its whole lifetime. Never deletes
 /// the lockfile: removal/recreation would permit split-brain locks on two inodes.
@@ -262,6 +328,27 @@ impl DurableTape {
         trusted_collator_pubkey: &str,
         max_entries: usize,
         import: ImportMode,
+    ) -> Result<Self, DurableError> {
+        Self::open_inner(
+            directory,
+            stem,
+            collator_id,
+            trusted_collator_pubkey,
+            max_entries,
+            import,
+            None,
+        )
+    }
+    /// Verifies an independent witnessed prefix under the OS lock before
+    /// trimming or recovering any local tape or checkpoint.
+    fn open_inner(
+        directory: &Path,
+        stem: &str,
+        collator_id: &str,
+        trusted_collator_pubkey: &str,
+        max_entries: usize,
+        import: ImportMode,
+        witness: WitnessGate<'_>,
     ) -> Result<Self, DurableError> {
         #[cfg(not(unix))]
         return Err(DurableError::UnsupportedFilesystem);
@@ -302,7 +389,15 @@ impl DurableTape {
             .create(true)
             .truncate(false)
             .open(&tape_path)?;
-        // Persist initial directory entries before any successful append ack.
+        // Lock is acquired. Remote latest must be fetched before any repair.
+        let witnessed = if let Some((scope, query)) = witness {
+            scope.assert_collator_identity(collator_id, trusted_collator_pubkey)?;
+            let nonce = fresh_challenge()?;
+            let signed = query(&nonce)?;
+            Some(scope.verify_receipt(&signed, &nonce)?)
+        } else {
+            None
+        };
         sync_directory(&directory)?;
         let previous = read_anchor(&anchor_path)?;
         let (verified, valid_bytes, torn_tail) = scan(
@@ -311,6 +406,7 @@ impl DurableTape {
             trusted_collator_pubkey,
             max_entries,
             previous.as_ref(),
+            witnessed.as_ref(),
         )?;
         if previous.is_none() && valid_bytes != 0 && import == ImportMode::RequireAnchor {
             return Err(DurableError::UnanchoredHistory);
@@ -434,6 +530,94 @@ impl DurableTape {
         }
         self.bytes = next_bytes;
         Ok(next)
+    }
+}
+
+pub struct WitnessedTape<T: WitnessTransport> {
+    local: DurableTape,
+    remote: T,
+    scope: WitnessScope,
+    blocked: bool,
+}
+impl<T: WitnessTransport> WitnessedTape<T> {
+    /// Opens a witnessed tape using a fresh challenge while its OS lock is
+    /// held. No unwitnessed raw tape writer is exposed from this wrapper.
+    pub fn open(
+        directory: &Path,
+        stem: &str,
+        collator_id: &str,
+        collator_pubkey: &str,
+        max_entries: usize,
+        scope: WitnessScope,
+        mut remote: T,
+    ) -> Result<Self, DurableError> {
+        let mut query = |challenge: &str| {
+            remote
+                .latest(challenge)
+                .map_err(|_| DurableError::RemoteUncertain)
+        };
+        let local = DurableTape::open_inner(
+            directory,
+            stem,
+            collator_id,
+            collator_pubkey,
+            max_entries,
+            ImportMode::RequireAnchor,
+            Some((&scope, &mut query)),
+        )?;
+        Ok(Self {
+            local,
+            remote,
+            scope,
+            blocked: false,
+        })
+    }
+    pub fn checkpoint(&self) -> Checkpoint {
+        self.local.checkpoint()
+    }
+    pub fn recovery(&self) -> Recovery {
+        self.local.recovery()
+    }
+    pub fn is_blocked(&self) -> bool {
+        self.blocked
+    }
+    /// A signed remote CAS must complete first. Ambiguous acknowledgments and
+    /// local fsync failures poison this handle; no fallback to local-only.
+    pub fn append_signed(&mut self, line: &str) -> Result<Checkpoint, DurableError> {
+        if self.blocked || self.local.poisoned {
+            return Err(DurableError::NeedsRecovery);
+        }
+        let planned = self.local.verified.prepare_line(line)?.checkpoint().clone();
+        let previous = self.local.checkpoint();
+        let challenge = fresh_challenge()?;
+        let signed = match self.remote.cas_signed(&previous, line, &challenge) {
+            Ok(s) => s,
+            Err(_) => {
+                self.blocked = true;
+                return Err(DurableError::RemoteUncertain);
+            }
+        };
+        let receipt = match self.scope.verify_receipt(&signed, &challenge) {
+            Ok(r) => r,
+            Err(e) => {
+                self.blocked = true;
+                return Err(DurableError::Witness(e));
+            }
+        };
+        if receipt.seq() != planned.last_seq
+            || receipt.head_hash() != planned.last_hash
+            || receipt.seen_orders() != planned.seen_orders
+        {
+            self.blocked = true;
+            return Err(DurableError::RemoteUncertain);
+        }
+        match self.local.append_signed(line) {
+            Ok(actual) if actual == planned => Ok(actual),
+            _ => {
+                self.blocked = true;
+                Err(DurableError::CommitUnknown)
+            }
+        }
     }
 }
 

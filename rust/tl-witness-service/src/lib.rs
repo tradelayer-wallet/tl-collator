@@ -13,7 +13,7 @@ use std::{
 };
 use tl_collator_wire::{
     canonical_json,
-    durable::{DurableError, DurableTape, ImportMode},
+    durable::{DurableError, DurableTape, ImportMode, WitnessTransport, WitnessTransportError},
     sha256_hex,
     verify::Checkpoint,
     witness::{WitnessError, WitnessScope},
@@ -277,5 +277,23 @@ impl WitnessService {
         let mut reply = unsigned;
         reply["sigWitness"] = Value::String(hex(&signature.serialize_compact()));
         serde_json::to_string(&reply).map_err(|_| Error::InvalidScope)
+    }
+}
+
+impl WitnessTransport for WitnessService {
+    fn latest(&mut self, challenge: &str) -> Result<String, WitnessTransportError> {
+        self.attest_latest(challenge)
+            .map_err(|_| WitnessTransportError::Unavailable)
+    }
+    fn cas_signed(
+        &mut self,
+        expected: &Checkpoint,
+        signed_entry: &str,
+        challenge: &str,
+    ) -> Result<String, WitnessTransportError> {
+        self.compare_and_swap(expected, signed_entry)
+            .map_err(|_| WitnessTransportError::Unavailable)?;
+        self.attest_latest(challenge)
+            .map_err(|_| WitnessTransportError::Unavailable)
     }
 }
