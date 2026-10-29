@@ -1,10 +1,10 @@
 #![cfg(unix)]
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
-use serde_json::{json,Value};
+use serde_json::json;
 use std::{
     fs::{self,Permissions},
     os::unix::fs::PermissionsExt,
-    path::{Path,PathBuf},
+    path::PathBuf,
     sync::atomic::{AtomicU64,Ordering},
     time::{Duration,SystemTime,UNIX_EPOCH},
 };
@@ -17,7 +17,7 @@ use tl_collator_wire::{
 use tl_witness_service::ssh::{SshConfig,SshWitnessTransport};
 
 static I:AtomicU64=AtomicU64::new(0);
-struct Env {root:PathBuf,remote:PathBuf,local:PathBuf,ssh:PathBuf,known:PathBuf,auth:PathBuf,args:PathBuf}
+struct Env {root:PathBuf,local:PathBuf,ssh:PathBuf,known:PathBuf,auth:PathBuf,args:PathBuf}
 fn quote(s:&str)->String {format!("'{}'",s.replace('\'',"'\\''"))}
 impl Env {
     fn new(script_override:Option<&str>)->Self {
@@ -52,7 +52,7 @@ impl Env {
         };
         fs::write(&ssh,source).unwrap();
         fs::set_permissions(&ssh,Permissions::from_mode(0o700)).unwrap();
-        Self {root,remote,local,ssh,known,auth,args}
+        Self {root,local,ssh,known,auth,args}
     }
     fn config(&self,timeout:Duration)->SshConfig{
         SshConfig::new(self.ssh.clone(),"witnessrunner".into(),"example.test".into(),

@@ -1,8 +1,6 @@
 //! Explicit SSH process adapter for a separately hosted witnessctl executable.
 //! It neither stores signing keys nor authenticates receipts itself: the
 //! WitnessedTape caller verifies the independently signed TL-Canon receipt.
-#![cfg(unix)]
-
 use std::{
     fs,
     io::{Read, Write},
@@ -162,7 +160,7 @@ impl SshWitnessTransport {
             let _=child.kill();
             let _=child.wait();
         }
-        let write_ok=writer.map_or(true,|handle|
+        let write_ok=writer.is_none_or(|handle|
             handle.join().is_ok_and(|r|r.is_ok()));
         let (read_ok,output)=reader.join()
             .map_err(|_|WitnessTransportError::Unavailable)?;
