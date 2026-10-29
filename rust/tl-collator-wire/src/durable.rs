@@ -215,7 +215,7 @@ impl DurableTape {
         #[cfg(not(unix))]
         return Err(DurableError::UnsupportedFilesystem);
         if stem.is_empty() || stem.len()>64
-            || !stem.bytes().all(|b|b.is_ascii_alphanumeric()||b=='_'||b=='-') {
+            || !stem.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'_'||b==b'-') {
             return Err(DurableError::InvalidPath);
         }
         let directory=fs::canonicalize(directory)?;
