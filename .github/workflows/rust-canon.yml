@@ -18,32 +18,15 @@ jobs:
       - name: Fetch locked dependencies
         working-directory: rust/tl-collator-wire
         run: cargo fetch --locked
-      - name: Format initial durable module for review
-        working-directory: rust/tl-collator-wire
-        run: |
-          cargo fmt --all
-          echo DURABLE_BEGIN
-          base64 -w0 src/durable.rs
-          echo
-          echo DURABLE_END
-          echo DURABLE_TESTS_BEGIN
-          base64 -w0 src/durable_tests.rs
-          echo
-          echo DURABLE_TESTS_END
-          echo VERIFY_BEGIN
-          base64 -w0 src/verify.rs
-          echo
-          echo VERIFY_END
-          echo LIB_BEGIN
-          base64 -w0 src/lib.rs
-          echo
-          echo LIB_END
-      - name: Check pinned fixture
+      - name: Check pinned TypeScript fixtures
         working-directory: rust/tl-collator-wire
         run: node scripts/verify-fixture.cjs
-      - name: Rust tests including crash/restart
+      - name: Unit, signed replay, and crash recovery tests
         working-directory: rust/tl-collator-wire
         run: cargo test --locked --offline
-      - name: Clippy
+      - name: Lint all targets
         working-directory: rust/tl-collator-wire
         run: cargo clippy --locked --offline --all-targets -- -D warnings
+      - name: Verify committed formatting
+        working-directory: rust/tl-collator-wire
+        run: cargo fmt --all -- --check

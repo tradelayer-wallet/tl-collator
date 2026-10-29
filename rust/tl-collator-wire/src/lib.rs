@@ -3,8 +3,8 @@
 //! It performs no signing, networking, or live order admission.
 #![forbid(unsafe_code)]
 
-pub mod verify;
 pub mod durable;
+pub mod verify;
 
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
