@@ -228,13 +228,13 @@ impl DurableTape {
         }
         // Keep the same inode and OS lock until drop; locks are released if
         // the process is killed or exits, no PID or stale-file override needed.
-        let lock=OpenOptions::new().read(true).write(true).create(true).open(&lock_path)?;
+        let lock=OpenOptions::new().read(true).write(true).create(true).truncate(false).open(&lock_path)?;
         match lock.try_lock(){
             Ok(())=>{},
             Err(TryLockError::WouldBlock)=>return Err(DurableError::LockBusy),
             Err(TryLockError::Error(e))=>return Err(DurableError::Io(e)),
         }
-        let mut tape=OpenOptions::new().read(true).write(true).create(true).open(&tape_path)?;
+        let mut tape=OpenOptions::new().read(true).write(true).create(true).truncate(false).open(&tape_path)?;
         // Persist initial directory entries before any successful append ack.
         sync_directory(&directory)?;
         let previous=read_anchor(&anchor_path)?;
