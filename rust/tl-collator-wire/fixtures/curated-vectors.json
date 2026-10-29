@@ -1,0 +1,178 @@
+{
+  "orderTest": {
+    "envelopeNoSig": {
+      "v": 1,
+      "kind": "NEW",
+      "body": {
+        "v": 1,
+        "market": "SPOT:LTC/USDT",
+        "side": "BUY",
+        "px": "72.50",
+        "qty": "10.0",
+        "visibility": {
+          "kind": "PUBLIC"
+        },
+        "clientTs": 1700000000000
+      },
+      "traderPubKey": "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "clientNonce": "deadbeefdeadbeefdeadbeefdeadbeef"
+    },
+    "expectedOrderId": "64496beee789330938912bb4fbef934e4dcb6bd3eabfe50d6a2786cd4fde71b4"
+  },
+  "orderCancelTest": {
+    "envelopeNoSig": {
+      "v": 1,
+      "kind": "CANCEL",
+      "body": {
+        "v": 1,
+        "market": "SPOT:LTC/USDT",
+        "side": "BUY",
+        "px": "72.50",
+        "qty": "10.0",
+        "visibility": {
+          "kind": "PUBLIC"
+        },
+        "clientTs": 1700000000000
+      },
+      "traderPubKey": "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "clientNonce": "deadbeefdeadbeefdeadbeefdeadbeef",
+      "cancelsOrderId": "64496beee789330938912bb4fbef934e4dcb6bd3eabfe50d6a2786cd4fde71b4"
+    },
+    "expectedOrderId": "2f82c9f20f423031bfcbcb46ba7c7d386f347c18df3951a941d899c9daf6b113"
+  },
+  "integerKeyTest": {
+    "input": {
+      "9": 1,
+      "10": 2,
+      "a": 3,
+      "b": 4
+    },
+    "expectedCanonical": "{\"10\":2,\"9\":1,\"a\":3,\"b\":4}",
+    "expectedSha256": "6d65d36f334985e0bebdadf373f88877814a8f376589995dc497680f0871189f"
+  },
+  "orderIntegerKeyTest": {
+    "envelopeNoSig": {
+      "v": 1,
+      "kind": "NEW",
+      "body": {
+        "v": 1,
+        "market": "SPOT:LTC/USDT",
+        "side": "BUY",
+        "px": "72.50",
+        "qty": "10.0",
+        "visibility": {
+          "kind": "PUBLIC"
+        },
+        "clientTs": 1700000000000,
+        "extra": {
+          "9": 1,
+          "10": 2,
+          "a": 3,
+          "b": 4
+        }
+      },
+      "traderPubKey": "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "clientNonce": "deadbeefdeadbeefdeadbeefdeadbeef"
+    },
+    "expectedOrderId": "12ce984f6b3da648f82b113b753a76c3f61caa3f83bf6ac802bd3af4468ba4f4"
+  },
+  "unicodeKeyOrderTest": {
+    "note": "Code-point order: U+E000 sorts before U+10000. A UTF-16 code-unit comparison would put the surrogate pair first.",
+    "input": {
+      "": 1,
+      "𐀀": 2
+    },
+    "expectedCanonical": "{\"\":1,\"𐀀\":2}",
+    "expectedSha256": "8706b5798a29d65739b3d1bbb1d009f87d005c71c8130c5353c4990c15ddfec8"
+  },
+  "integralNumberTest": {
+    "note": "JSON has one number type: 1.0 has the value of 1. Python's json parses 1.0 as float, JavaScript as 1.",
+    "input": 1,
+    "expectedCanonical": "1"
+  },
+  "tapeTest": {
+    "entryNoSig": {
+      "v": 1,
+      "collatorId": "collator-demo",
+      "seq": 1,
+      "prevHash": "",
+      "receivedTs": 1700000000100,
+      "order": {
+        "v": 1,
+        "kind": "NEW",
+        "body": {
+          "v": 1,
+          "market": "SPOT:LTC/USDT",
+          "side": "BUY",
+          "px": "72.50",
+          "qty": "10.0",
+          "visibility": {
+            "kind": "PUBLIC"
+          },
+          "clientTs": 1700000000000
+        },
+        "traderPubKey": "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "clientNonce": "deadbeefdeadbeefdeadbeefdeadbeef",
+        "orderId": "64496beee789330938912bb4fbef934e4dcb6bd3eabfe50d6a2786cd4fde71b4",
+        "sigTrader": "00"
+      }
+    },
+    "expectedEntryHash": "185ac10f5bf02c6bac74b0621843d2d4584e39d0fb8538079e0c93657f4b625a",
+    "expectedSigPayloadHash": "ee95534105c21cbe2f99d3904123fcc8669cafeb509be1e8ec79fb3da43dbd9e"
+  },
+  "rejectTests": [
+    {
+      "name": "integer above 2^53-1",
+      "input": 9007199254740992
+    },
+    {
+      "name": "fractional number",
+      "input": 1.5
+    },
+    {
+      "name": "nested out-of-range number",
+      "input": {
+        "x": [
+          1,
+          1e+300
+        ]
+      }
+    }
+  ],
+  "textRejectTests": [
+    {
+      "name": "fraction that JSON.parse rounds to a safe integer",
+      "text": "{\"qty\":9007199254740991.0000000000000001}"
+    },
+    {
+      "name": "fraction just below a safe integer",
+      "text": "{\"qty\":9007199254740990.9999999999999999}"
+    },
+    {
+      "name": "integral value with a non-zero tail, in an array",
+      "text": "[3.0000000000000000001]"
+    },
+    {
+      "name": "exponent form with a non-zero tail, nested",
+      "text": "{\"body\":{\"clientTs\":1.00000000000000000001e0}}"
+    }
+  ],
+  "textAcceptTests": [
+    {
+      "name": "1.0 has the value of 1",
+      "text": "{\"qty\":1.0}"
+    },
+    {
+      "name": "exponent form and negative zero of safe integers",
+      "text": "[1e3, 9007199254740991e0, -0]"
+    },
+    {
+      "name": "trailing zeros after the point of a safe integer",
+      "text": "{\"qty\":9007199254740991.000}"
+    },
+    {
+      "name": "non-integer below the safe range is left to the value rules",
+      "text": "[0.5]"
+    }
+  ]
+}

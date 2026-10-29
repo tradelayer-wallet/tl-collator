@@ -1,0 +1,32 @@
+name: Rust TL-Canon contract
+on:
+  pull_request:
+    paths: ['rust/**', '.github/workflows/rust-canon.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  canon:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned toolchain
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
+      - name: Fetch locked dependencies
+        working-directory: rust/tl-collator-wire
+        run: cargo fetch --locked
+      - name: Check pinned fixture
+        working-directory: rust/tl-collator-wire
+        run: node scripts/verify-fixture.cjs
+      - name: Rust tests
+        working-directory: rust/tl-collator-wire
+        run: cargo test --locked --offline
+      - name: Clippy
+        working-directory: rust/tl-collator-wire
+        run: cargo clippy --locked --offline --all-targets -- -D warnings
+      - name: Rustfmt
+        working-directory: rust/tl-collator-wire
+        run: cargo fmt --all -- --check
