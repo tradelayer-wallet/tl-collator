@@ -18,6 +18,22 @@ jobs:
       - name: Fetch locked dependencies
         working-directory: rust/tl-witness-service
         run: cargo fetch --locked
+      - name: Format SSH adapter for source commit
+        working-directory: rust/tl-witness-service
+        run: |
+          cargo fmt --all
+          echo SSH_BEGIN
+          base64 -w0 src/ssh.rs
+          echo
+          echo SSH_END
+          echo SSH_TEST_BEGIN
+          base64 -w0 tests/ssh.rs
+          echo
+          echo SSH_TEST_END
+          echo LIB_BEGIN
+          base64 -w0 src/lib.rs
+          echo
+          echo LIB_END
       - name: Unit, CLI permissions, synthetic-key CAS tests
         working-directory: rust/tl-witness-service
         run: cargo test --locked --offline

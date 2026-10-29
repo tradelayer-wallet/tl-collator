@@ -3,6 +3,9 @@
 //! It opens no network sockets and accepts no unauthenticated RPC by itself.
 #![forbid(unsafe_code)]
 
+#[cfg(unix)]
+pub mod ssh;
+
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde_json::{json, Value};
 use std::{
