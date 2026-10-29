@@ -95,7 +95,7 @@ fn untrusted_directory_or_client_selected_head_cannot_open_witness() {
 #[test]
 fn cas_with_missing_signed_stdin_is_denied_without_advancing_head() {
     let t = Fixture::new();
-    let fail = t.run(&["cas", "0", "", "0"]);
+    let fail = t.run(&["cas", "0", "", "0", &"ab".repeat(32)]);
     assert!(!fail.status.success());
     let success = t.run(&["latest", &"ab".repeat(32)]);
     assert!(success.status.success());

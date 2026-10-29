@@ -67,9 +67,9 @@ mod unix_cli {
     pub fn run() -> Result<String> {
         let args: Vec<String> = env::args().skip(1).collect();
         let mode = args.first().ok_or("expected latest or cas command")?;
-        if !(mode == "latest" && args.len() == 2 || mode == "cas" && args.len() == 4) {
+        if !(mode == "latest" && args.len() == 2 || mode == "cas" && args.len() == 5) {
             return Err(
-                "usage: witnessctl latest <challenge> OR witnessctl cas <seq> <hash> <orders>"
+                "usage: witnessctl latest <challenge> OR witnessctl cas <seq> <hash> <orders> <challenge>"
                     .into(),
             );
         }
@@ -115,11 +115,8 @@ mod unix_cli {
         {
             return Err("invalid signed entry".into());
         }
-        let head = service.compare_and_swap(&expected, entry)?;
-        Ok(serde_json::json!({
-            "seq":head.last_seq,"headHash":head.last_hash,"seenOrders":head.seen_orders
-        })
-        .to_string())
+        service.compare_and_swap(&expected, entry)?;
+        Ok(service.attest_latest(&args[4])?)
     }
 }
 #[cfg(unix)]

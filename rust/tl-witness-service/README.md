@@ -52,3 +52,14 @@ Synthetic-key tests prove authenticated receipt signatures, exact CAS,
 duplicate/branch denial, restart state, lock contention, and schema scope.
 They do **not** prove remote durability, network authorization or safe power-loss
 behavior on a specific physical filesystem.
+
+## Witnessed transport command
+
+A future authenticated remote adapter calls `latest <fresh-challenge>`
+under the collator tape's OS lock, then `cas <expected-seq>
+<expected-hash> <expected-orders> <fresh-challenge>` with the signed entry
+on stdin. The CAS acknowledgment is a **separately signed challenge-bound
+latest-head receipt**, not an unsigned status object. The independent host
+must authenticate requests with operator-controlled SSH keys, pin its
+host key, restrict user/environment/permissions, and cap request size
+and subprocess concurrency. No host is provisioned here.
