@@ -116,7 +116,8 @@ pub struct Checkpoint {
     pub seen_orders: usize,
 }
 
-#[derive(Clone)]
+/// The replay index has deliberately no Clone implementation: durable writes
+/// must not copy a growing ownership map for each appended order.
 pub struct VerifiedReplay {
     collator_id: String,
     collator_pubkey: PublicKey,
@@ -124,6 +125,23 @@ pub struct VerifiedReplay {
     checkpoint: Checkpoint,
     owners: BTreeMap<String, String>,
 }
+
+/// The fully verified mutation is inert until commit_prepared is called.
+/// All fields are private, so consumers cannot synthesize a trusted entry.
+pub(crate) struct PreparedAppend {
+    expected_seq: u64,
+    expected_hash: String,
+    next: Checkpoint,
+    order_id: String,
+    owner: String,
+}
+
+impl PreparedAppend {
+    pub(crate) fn checkpoint(&self) -> &Checkpoint {
+        &self.next
+    }
+}
+
 impl VerifiedReplay {
     /// The public key is a pinned operator-configured trust anchor, never read
     /// from the entry itself. max_entries bounds memory consumed by owner lookup.
@@ -164,15 +182,44 @@ impl VerifiedReplay {
         self.owner_of(id).is_some()
     }
 
-    /// Verification is atomic with respect to this in-memory state. The input
-    /// must originate from serialized JSON, preserving duplicate-key and
-    /// fractional-token checks. No entry is acknowledged before this returns.
-    pub fn apply_line(&mut self, line: &str) -> Result<Checkpoint, VerifyError> {
+    /// Verify a candidate without changing the replay index. This lets
+    /// DurableTape persist the signed bytes and checkpoint before insertion.
+    /// Parsing is strict about duplicate keys and rounded number tokens.
+    pub(crate) fn prepare_line(&self, line: &str) -> Result<PreparedAppend, VerifyError> {
         let entry = parse_canonical_text(line)?;
-        self.apply_entry(&entry)?;
+        self.prepare_entry(&entry)
+    }
+
+    /// Commit a previously validated entry. A token prepared against a stale
+    /// checkpoint cannot mutate this state. Insertion is O(log n) rather than
+    /// cloning the entire BTreeMap on each durable append.
+    pub(crate) fn commit_prepared(
+        &mut self,
+        prepared: PreparedAppend,
+    ) -> Result<Checkpoint, VerifyError> {
+        if self.checkpoint.last_seq != prepared.expected_seq
+            || self.checkpoint.last_hash != prepared.expected_hash
+        {
+            return Err(VerifyError::BrokenChain);
+        }
+        if self.owners.contains_key(&prepared.order_id) {
+            return Err(VerifyError::Duplicate);
+        }
+        if self.owners.len() >= self.max_entries {
+            return Err(VerifyError::Capacity);
+        }
+        self.owners.insert(prepared.order_id, prepared.owner);
+        self.checkpoint = prepared.next;
         Ok(self.checkpoint())
     }
-    fn apply_entry(&mut self, entry: &Value) -> Result<(), VerifyError> {
+
+    /// Offline replay retains the same verification and ordering semantics.
+    pub fn apply_line(&mut self, line: &str) -> Result<Checkpoint, VerifyError> {
+        let prepared = self.prepare_line(line)?;
+        self.commit_prepared(prepared)
+    }
+
+    fn prepare_entry(&self, entry: &Value) -> Result<PreparedAppend, VerifyError> {
         if u64_field(entry, "v")? != 1 {
             return Err(VerifyError::Invalid("v"));
         }
@@ -272,14 +319,19 @@ impl VerifiedReplay {
             str_field(entry, "sigCollator")?,
             &self.collator_pubkey,
         )?;
-        // All failure paths return before state advances.
-        self.owners.insert(id.to_owned(), owner);
-        self.checkpoint = Checkpoint {
-            last_seq: seq,
-            last_hash: entry_hash.to_owned(),
-            seen_orders: self.owners.len(),
-        };
-        Ok(())
+        // The caller must durably persist the bytes before committing this
+        // token. No ownership map or checkpoint mutation occurs here.
+        Ok(PreparedAppend {
+            expected_seq: self.checkpoint.last_seq,
+            expected_hash: self.checkpoint.last_hash.clone(),
+            next: Checkpoint {
+                last_seq: seq,
+                last_hash: entry_hash.to_owned(),
+                seen_orders: self.owners.len() + 1,
+            },
+            order_id: id.to_owned(),
+            owner,
+        })
     }
     /// Reconstruct the entire trusted prefix from persisted NDJSON without a
     /// disk mutation. A truncated final record and damaged interior refuse
