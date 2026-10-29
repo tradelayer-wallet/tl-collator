@@ -26,7 +26,7 @@ mod tests {
         fn tape(&self)->PathBuf{self.0.join("orders.ndjson")}
         fn anchor(&self)->PathBuf{self.0.join("orders.checkpoint")}
         fn open(&self,mode:ImportMode)->Result<DurableTape,DurableError>{
-            DurableTape::open(&self.0,"orders","collator-1",&key_hex(&[3u8;32]),100,mode)
+            DurableTape::open(&self.0,"orders","collator-1",&key_hex(&[3u8;32]),256,mode)
         }
     }
     impl Drop for TestDir {
@@ -306,4 +306,61 @@ mod tests {
         child.wait().unwrap();
         assert!(dir.open(ImportMode::RequireAnchor).is_ok());
     }
+
+    #[test]
+    fn preparation_is_inert_until_the_durable_commit() {
+        let dir = TestDir::new();
+        let mut writer = dir.open(ImportMode::RequireAnchor).unwrap();
+        let first = new_line(31, 1, "");
+        let prepared = writer.verified.prepare_line(&first).unwrap();
+        assert_eq!(prepared.checkpoint().last_seq, 1);
+        assert_eq!(writer.checkpoint().last_seq, 0);
+        assert_eq!(writer.verified.checkpoint().seen_orders, 0);
+        assert_eq!(fs::metadata(dir.tape()).unwrap().len(), 0);
+        let committed = writer.append_signed(&first).unwrap();
+        assert_eq!(committed.last_seq, 1);
+        assert!(matches!(
+            writer.verified.commit_prepared(prepared),
+            Err(VerifyError::BrokenChain)
+        ));
+        assert_eq!(writer.checkpoint(), committed);
+        assert_eq!(fs::read_to_string(dir.tape()).unwrap().lines().count(), 1);
+    }
+
+    #[test]
+    fn stale_prepared_cannot_be_committed_after_another_entry() {
+        let dir = TestDir::new();
+        let mut writer = dir.open(ImportMode::RequireAnchor).unwrap();
+        let line_a = new_line(32, 1, "");
+        let line_b = new_line(33, 1, "");
+        let prepared_a = writer.verified.prepare_line(&line_a).unwrap();
+        let checkpoint = writer.append_signed(&line_b).unwrap();
+        assert_eq!(checkpoint.last_seq, 1);
+        assert!(matches!(
+            writer.verified.commit_prepared(prepared_a),
+            Err(VerifyError::BrokenChain)
+        ));
+        assert_eq!(writer.checkpoint(), checkpoint);
+        assert_eq!(fs::read_to_string(dir.tape()).unwrap().lines().count(), 1);
+    }
+
+    #[test]
+    fn bounded_history_remains_consistent_across_many_appends_and_restart() {
+        let dir = TestDir::new();
+        let mut writer = dir.open(ImportMode::RequireAnchor).unwrap();
+        let mut prev = String::new();
+        for n in 1..=150u64 {
+            let item = new_line(1000 + n, n, &prev);
+            let cp = writer.append_signed(&item).unwrap();
+            assert_eq!(cp.last_seq, n);
+            assert_eq!(cp.seen_orders, n as usize);
+            prev = cp.last_hash;
+        }
+        drop(writer);
+        let again = dir.open(ImportMode::RequireAnchor).unwrap();
+        assert_eq!(again.checkpoint().last_seq, 150);
+        assert_eq!(again.checkpoint().seen_orders, 150);
+        assert_eq!(again.recovery().unanchored_records, 0);
+    }
+
 }

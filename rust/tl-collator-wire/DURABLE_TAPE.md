@@ -93,3 +93,19 @@ network authorization and session identity, bounded streaming responses,
 cross-process/machine fault injection on the intended production filesystem,
 an externally authenticated rollback anchor, signed release artefacts, and
 review of the final accepted TypeScript wire contract. No live funds or keys.
+
+## RUST-17D: prepare/commit replay index optimization
+
+The signed envelope and full tape are now verified in `prepare_line` before
+any disk mutation. This creates a private `PreparedAppend` token containing
+only the next checkpoint and one order ownership insertion, not a copy of the
+whole ownership index. After tape fsync, atomic checkpoint rename and parent
+directory fsync, `commit_prepared` inserts into the BTreeMap and advances the
+checkpoint. An attempt to reuse a stale prepared token fails closed.
+
+Per-append owner-map work is now O(log n) after verification rather than
+O(n) cloning, with unchanged O(n) replay reconstruction after restart. This
+is an asymptotic code-level improvement; **no throughput benchmark has been
+claimed**. New tests exercise preparation without mutation, stale tokens and
+150 consecutive durable appends followed by restart. Remaining external
+monotonic rollback anchor and actual power-loss durability are not solved.

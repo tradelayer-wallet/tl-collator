@@ -381,10 +381,16 @@ impl DurableTape {
         {
             return Err(DurableError::TooLarge);
         }
-        let mut candidate = self.verified.clone();
-        let next = candidate.apply_line(line)?;
+        // Prepare verifies every signature and references without cloning the
+        // entire owner map. The token stays inert until the durable commit.
+        let prepared = self.verified.prepare_line(line)?;
+        let next = prepared.checkpoint().clone();
         let mut bytes = line.as_bytes().to_vec();
         bytes.push(b'\n');
+        let next_bytes = self
+            .bytes
+            .checked_add(bytes.len() as u64)
+            .ok_or(DurableError::TooLarge)?;
         self.tape.seek(SeekFrom::Start(self.bytes))?;
         if point == FaultPoint::PartialWrite {
             if let Err(error) = self.tape.write_all(&bytes[..bytes.len() / 2]) {
@@ -420,11 +426,13 @@ impl DurableTape {
             self.poisoned = true;
             return Err(DurableError::CommitUnknown);
         }
-        self.bytes = self
-            .bytes
-            .checked_add(bytes.len() as u64)
-            .ok_or(DurableError::TooLarge)?;
-        self.verified = candidate;
+        if self.verified.commit_prepared(prepared).is_err() {
+            // Defensive containment: bytes are already acknowledged by the
+            // local fsync/anchor sequence, so no silent in-place rollback.
+            self.poisoned = true;
+            return Err(DurableError::CommitUnknown);
+        }
+        self.bytes = next_bytes;
         Ok(next)
     }
 }
