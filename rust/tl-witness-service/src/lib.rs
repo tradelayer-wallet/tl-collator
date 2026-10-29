@@ -5,12 +5,12 @@
 
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde_json::{json, Value};
-use std::{fmt, path::Path};
+use std::{fmt, fs::{self, File, OpenOptions}, io::Write, path::Path};
 use tl_collator_wire::{
     canonical_json,
     durable::{DurableError, DurableTape, ImportMode},
     sha256_hex,
-    verify::{Checkpoint, VerifyError},
+    verify::Checkpoint,
     witness::{WitnessError, WitnessScope},
     MAX_SAFE_INTEGER,
 };
@@ -22,6 +22,7 @@ pub enum Error {
     InvalidScope,
     InvalidKey,
     InvalidChallenge,
+    InvalidStoredScope,
     Conflict,
     Durable(DurableError),
     Witness(WitnessError),
@@ -78,6 +79,45 @@ impl Config {
     }
 }
 
+/// Immutable scope metadata. The independent host filesystem must be
+/// controlled by the witness operator. A missing scope alongside preexisting
+/// signed tape history fails closed: do not silently reassign old entries
+/// to a new network, stream, epoch, or signing key.
+fn pin_scope(
+    directory: &Path, config: &Config, witness_key: &str, state: &Checkpoint,
+) -> Result<(), Error> {
+    let directory=fs::canonicalize(directory).map_err(|_|Error::InvalidStoredScope)?;
+    let path=directory.join("witness.scope");
+    let expected=json!({
+        "v":1, "collatorId":config.collator_id,
+        "collatorPubKey":config.collator_pubkey,
+        "network":config.network, "stream":config.stream,
+        "epoch":config.epoch,"witnessPubKey":witness_key,
+    });
+    let encoded=serde_json::to_vec(&expected).map_err(|_|Error::InvalidStoredScope)?;
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) => {
+            if !metadata.file_type().is_file() || metadata.len()!=encoded.len() as u64 {
+                return Err(Error::InvalidStoredScope);
+            }
+            let actual=fs::read(&path).map_err(|_|Error::InvalidStoredScope)?;
+            if actual!=encoded {return Err(Error::InvalidStoredScope);}
+        },
+        Err(err) if err.kind()==std::io::ErrorKind::NotFound => {
+            if state.last_seq!=0 {return Err(Error::InvalidStoredScope);}
+            let mut file=OpenOptions::new()
+                .write(true).create_new(true).open(&path)
+                .map_err(|_|Error::InvalidStoredScope)?;
+            file.write_all(&encoded).and_then(|_|file.sync_all())
+                .map_err(|_|Error::InvalidStoredScope)?;
+            File::open(&directory).and_then(|f|f.sync_all())
+                .map_err(|_|Error::InvalidStoredScope)?;
+        },
+        Err(_) =>return Err(Error::InvalidStoredScope),
+    }
+    Ok(())
+}
+
 /// A signed checkpoint can be created only from the witness's own verified
 /// durable current state. Never accept a caller-supplied head for this method.
 pub struct WitnessService {
@@ -104,6 +144,11 @@ impl WitnessService {
             &config.collator_id, &config.network, &config.stream,
             config.epoch, &witness_pubkey_hex,
         )?;
+        if !matches!(config.collator_pubkey.len(), 66 | 130)
+            || !config.collator_pubkey.bytes().all(|b|
+                b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+            return Err(Error::InvalidKey);
+        }
         let collator_pubkey_bytes: Vec<u8> = config.collator_pubkey.as_bytes()
             .chunks_exact(2)
             .map(|p| std::str::from_utf8(p).ok().and_then(|s| u8::from_str_radix(s,16).ok()))
@@ -117,6 +162,10 @@ impl WitnessService {
             &config.collator_pubkey, config.max_entries,
             ImportMode::RequireAnchor,
         )?;
+        // Bind persistent records to a single network/stream/epoch and the
+        // collator + witness identities. This happens while the tape OS lock
+        // is held, so competing service instances cannot race the first pin.
+        pin_scope(directory, &config, &witness_pubkey_hex, &tape.checkpoint())?;
         Ok(Self {
             tape,witness_private_key,witness_pubkey_hex,
             collator_id:config.collator_id, network:config.network,

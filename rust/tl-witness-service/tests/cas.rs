@@ -148,6 +148,42 @@ fn witness_restart_rejects_rollback_and_recovers_signed_head() {
     assert_eq!(scope().verify_receipt(&resumed.attest_latest(&challenge()).unwrap(),&challenge()).unwrap().seq(),2);
 }
 #[test]
+fn persistent_scope_cannot_change_network_epoch_or_signing_key() {
+    let t=Tmp::new();
+    let mut service=open(&t);
+    let before=service.checkpoint();
+    service.compare_and_swap(&before,&entry(1,"",order(101))).unwrap();
+    let written=fs::read(t.tape()).unwrap();
+    drop(service);
+    assert!(matches!(
+        WitnessService::open(t.path(),config("BTC"),&[5u8;32]),
+        Err(Error::InvalidStoredScope)
+    ));
+    let mut new_epoch=config("LTCTEST");
+    new_epoch.epoch=4;
+    assert!(matches!(
+        WitnessService::open(t.path(),new_epoch,&[5u8;32]),
+        Err(Error::InvalidStoredScope)
+    ));
+    assert!(matches!(
+        WitnessService::open(t.path(),config("LTCTEST"),&[4u8;32]),
+        Err(Error::InvalidStoredScope)
+    ));
+    assert_eq!(fs::read(t.tape()).unwrap(),written);
+}
+#[test]
+fn missing_or_corrupt_persistent_scope_with_history_fails_closed() {
+    let t=Tmp::new();
+    let mut svc=open(&t);
+    svc.compare_and_swap(&svc.checkpoint(),&entry(1,"",order(201))).unwrap();
+    drop(svc);
+    let stored=fs::read(t.tape()).unwrap();
+    fs::remove_file(t.path().join("witness.scope")).unwrap();
+    assert!(matches!(WitnessService::open(t.path(),config("LTCTEST"),&[5u8;32]),
+        Err(Error::InvalidStoredScope)));
+    assert_eq!(fs::read(t.tape()).unwrap(),stored);
+}
+#[test]
 fn foreign_scope_or_witness_key_cannot_authenticate() {
     let t=Tmp::new();
     assert!(WitnessService::open(t.path(),config("LTCTEST"),&[3u8;32]).is_err());
