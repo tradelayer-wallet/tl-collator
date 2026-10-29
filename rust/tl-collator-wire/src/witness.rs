@@ -98,10 +98,14 @@ impl WitnessScope {
     /// Check the caller's configured collator identity and key before any
     /// recovery. The independent witness must use another signing identity.
     pub fn assert_collator_identity(
-        &self, collator_id:&str, collator_pubkey:&str,
-    )->Result<(),WitnessError>{
-        if self.collator_id!=collator_id {return Err(WitnessError::WrongScope);}
-        if public_key(collator_pubkey)?==self.witness_pubkey {
+        &self,
+        collator_id: &str,
+        collator_pubkey: &str,
+    ) -> Result<(), WitnessError> {
+        if self.collator_id != collator_id {
+            return Err(WitnessError::WrongScope);
+        }
+        if public_key(collator_pubkey)? == self.witness_pubkey {
             return Err(WitnessError::Invalid("independence"));
         }
         Ok(())

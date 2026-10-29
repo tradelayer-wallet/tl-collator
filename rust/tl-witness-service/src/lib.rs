@@ -281,13 +281,17 @@ impl WitnessService {
 }
 
 impl WitnessTransport for WitnessService {
-    fn latest(&mut self,challenge:&str)->Result<String,()> {
-        self.attest_latest(challenge).map_err(|_|())
+    fn latest(&mut self, challenge: &str) -> Result<String, ()> {
+        self.attest_latest(challenge).map_err(|_| ())
     }
     fn cas_signed(
-        &mut self,expected:&Checkpoint,signed_entry:&str,challenge:&str,
-    )->Result<String,()> {
-        self.compare_and_swap(expected,signed_entry).map_err(|_|())?;
-        self.attest_latest(challenge).map_err(|_|())
+        &mut self,
+        expected: &Checkpoint,
+        signed_entry: &str,
+        challenge: &str,
+    ) -> Result<String, ()> {
+        self.compare_and_swap(expected, signed_entry)
+            .map_err(|_| ())?;
+        self.attest_latest(challenge).map_err(|_| ())
     }
 }

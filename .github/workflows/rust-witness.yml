@@ -18,34 +18,6 @@ jobs:
       - name: Fetch locked dependencies
         working-directory: rust/tl-witness-service
         run: cargo fetch --locked
-      - name: Commit-ready formatted source capture
-        working-directory: rust/tl-witness-service
-        run: |
-          cargo fmt --all
-          echo DURABLE_BEGIN
-          base64 -w0 ../tl-collator-wire/src/durable.rs
-          echo
-          echo DURABLE_END
-          echo WITNESS_BEGIN
-          base64 -w0 ../tl-collator-wire/src/witness.rs
-          echo
-          echo WITNESS_END
-          echo SERVICE_BEGIN
-          base64 -w0 src/lib.rs
-          echo
-          echo SERVICE_END
-          echo CLI_BEGIN
-          base64 -w0 src/bin/witnessctl.rs
-          echo
-          echo CLI_END
-          echo LOCKED_TEST_BEGIN
-          base64 -w0 tests/locked.rs
-          echo
-          echo LOCKED_TEST_END
-          echo CLI_TEST_BEGIN
-          base64 -w0 tests/cli.rs
-          echo
-          echo CLI_TEST_END
       - name: Unit, CLI permissions, synthetic-key CAS tests
         working-directory: rust/tl-witness-service
         run: cargo test --locked --offline
