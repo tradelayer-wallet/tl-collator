@@ -8,7 +8,7 @@ permissions:
 jobs:
   canon:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -18,28 +18,15 @@ jobs:
       - name: Fetch locked dependencies
         working-directory: rust/tl-collator-wire
         run: cargo fetch --locked
-      - name: Format initial change for committed source
-        working-directory: rust/tl-collator-wire
-        run: |
-          cargo fmt --all
-          echo "VERIFY_BEGIN"
-          base64 -w0 src/verify.rs
-          echo
-          echo "VERIFY_END"
-          echo "DURABLE_BEGIN"
-          base64 -w0 src/durable.rs
-          echo
-          echo "DURABLE_END"
-          echo "TESTS_BEGIN"
-          base64 -w0 src/durable_tests.rs
-          echo
-          echo "TESTS_END"
-      - name: Pinned canonical vector fixture
+      - name: Check pinned TypeScript fixtures
         working-directory: rust/tl-collator-wire
         run: node scripts/verify-fixture.cjs
-      - name: Full tests
+      - name: Unit, signed replay, and crash recovery tests
         working-directory: rust/tl-collator-wire
         run: cargo test --locked --offline
-      - name: Clippy
+      - name: Lint all targets
         working-directory: rust/tl-collator-wire
         run: cargo clippy --locked --offline --all-targets -- -D warnings
+      - name: Verify committed formatting
+        working-directory: rust/tl-collator-wire
+        run: cargo fmt --all -- --check
