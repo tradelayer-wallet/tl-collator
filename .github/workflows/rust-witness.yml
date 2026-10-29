@@ -1,0 +1,44 @@
+name: Rust independent witness
+on:
+  pull_request:
+    paths: ['rust/tl-witness-service/**','rust/tl-collator-wire/**','.github/workflows/rust-witness.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
+      - name: Resolve initial witness lock
+        working-directory: rust/tl-witness-service
+        run: |
+          cargo generate-lockfile
+          cargo fetch
+          echo LOCK_BEGIN
+          base64 -w0 Cargo.lock
+          echo
+          echo LOCK_END
+      - name: Format for initial review
+        working-directory: rust/tl-witness-service
+        run: |
+          cargo fmt --all
+          echo SERVICE_BEGIN
+          base64 -w0 src/lib.rs
+          echo
+          echo SERVICE_END
+          echo TEST_BEGIN
+          base64 -w0 tests/cas.rs
+          echo
+          echo TEST_END
+      - name: Unit and synthetic-key CAS tests
+        working-directory: rust/tl-witness-service
+        run: cargo test --locked --offline
+      - name: Strict clippy
+        working-directory: rust/tl-witness-service
+        run: cargo clippy --locked --offline --all-targets -- -D warnings
