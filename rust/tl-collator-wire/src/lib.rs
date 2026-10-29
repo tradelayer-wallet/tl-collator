@@ -1,7 +1,9 @@
 //! TL-Canon v1 Rust reference contract.
-//! This crate canonicalizes signed-message intent. It does not sign, verify
-//! secp256k1, receive network traffic, or admit real orders.
+//! This crate canonicalizes intent and verifies signed replay records.
+//! It performs no signing, networking, or live order admission.
 #![forbid(unsafe_code)]
+
+pub mod verify;
 
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
