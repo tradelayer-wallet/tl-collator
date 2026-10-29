@@ -8,7 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tl_collator_wire::{
-    durable::{DurableError, DurableTape, ImportMode, WitnessTransport, WitnessedTape},
+    durable::{DurableError, DurableTape, ImportMode, WitnessTransport, WitnessTransportError, WitnessedTape},
     order_id, tape_entry_hash, tape_signature_hash,
     verify::Checkpoint,
     witness::{WitnessError, WitnessScope},
@@ -127,30 +127,30 @@ fn local(dir: &Dir) -> DurableTape {
 }
 struct Unavailable;
 impl WitnessTransport for Unavailable {
-    fn latest(&mut self, _: &str) -> Result<String, ()> {
-        Err(())
+    fn latest(&mut self, _: &str) -> Result<String, WitnessTransportError> {
+        Err(WitnessTransportError::Unavailable)
     }
-    fn cas_signed(&mut self, _: &Checkpoint, _: &str, _: &str) -> Result<String, ()> {
-        Err(())
+    fn cas_signed(&mut self, _: &Checkpoint, _: &str, _: &str) -> Result<String, WitnessTransportError> {
+        Err(WitnessTransportError::Unavailable)
     }
 }
 struct DropCas(WitnessService);
 impl WitnessTransport for DropCas {
-    fn latest(&mut self, c: &str) -> Result<String, ()> {
-        self.0.attest_latest(c).map_err(|_| ())
+    fn latest(&mut self, c: &str) -> Result<String, WitnessTransportError> {
+        self.0.attest_latest(c).map_err(|_| WitnessTransportError::Unavailable)
     }
-    fn cas_signed(&mut self, _: &Checkpoint, _: &str, _: &str) -> Result<String, ()> {
-        Err(())
+    fn cas_signed(&mut self, _: &Checkpoint, _: &str, _: &str) -> Result<String, WitnessTransportError> {
+        Err(WitnessTransportError::Unavailable)
     }
 }
 struct LostCasAck(WitnessService);
 impl WitnessTransport for LostCasAck {
-    fn latest(&mut self, c: &str) -> Result<String, ()> {
-        self.0.attest_latest(c).map_err(|_| ())
+    fn latest(&mut self, c: &str) -> Result<String, WitnessTransportError> {
+        self.0.attest_latest(c).map_err(|_| WitnessTransportError::Unavailable)
     }
-    fn cas_signed(&mut self, cp: &Checkpoint, signed: &str, _: &str) -> Result<String, ()> {
-        self.0.compare_and_swap(cp, signed).map_err(|_| ())?;
-        Err(()) // Witness has committed; reply lost
+    fn cas_signed(&mut self, cp: &Checkpoint, signed: &str, _: &str) -> Result<String, WitnessTransportError> {
+        self.0.compare_and_swap(cp, signed).map_err(|_| WitnessTransportError::Unavailable)?;
+        Err(WitnessTransportError::Unavailable) // Witness has committed; reply lost
     }
 }
 #[test]

@@ -272,10 +272,13 @@ fn scan(
     Ok((verified, full_bytes, torn_bytes))
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WitnessTransportError { Unavailable }
+
 pub trait WitnessTransport {
     /// The witness returns its actual signed latest head, not one chosen by the
     /// caller. Transport authentication, key pinning and byte caps are required.
-    fn latest(&mut self, challenge: &str) -> Result<String, ()>;
+    fn latest(&mut self, challenge: &str) -> Result<String, WitnessTransportError>;
     /// Atomically compare-and-swap a fully signed next entry and return a
     /// newly signed challenge-bound receipt for the resulting head.
     fn cas_signed(
@@ -283,7 +286,7 @@ pub trait WitnessTransport {
         expected: &Checkpoint,
         signed_entry: &str,
         challenge: &str,
-    ) -> Result<String, ()>;
+    ) -> Result<String, WitnessTransportError>;
 }
 fn fresh_challenge() -> Result<String, DurableError> {
     #[cfg(not(unix))]
@@ -295,6 +298,11 @@ fn fresh_challenge() -> Result<String, DurableError> {
     }
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
+
+type WitnessGate<'a> = Option<(
+    &'a WitnessScope,
+    &'a mut dyn FnMut(&str) -> Result<String, DurableError>,
+)>;
 
 /// Holds an OS-level exclusive file lock for its whole lifetime. Never deletes
 /// the lockfile: removal/recreation would permit split-brain locks on two inodes.
@@ -338,10 +346,7 @@ impl DurableTape {
         trusted_collator_pubkey: &str,
         max_entries: usize,
         import: ImportMode,
-        witness: Option<(
-            &WitnessScope,
-            &mut dyn FnMut(&str) -> Result<String, DurableError>,
-        )>,
+        witness: WitnessGate<'_>,
     ) -> Result<Self, DurableError> {
         #[cfg(not(unix))]
         return Err(DurableError::UnsupportedFilesystem);
@@ -585,7 +590,7 @@ impl<T: WitnessTransport> WitnessedTape<T> {
         let challenge = fresh_challenge()?;
         let signed = match self.remote.cas_signed(&previous, line, &challenge) {
             Ok(s) => s,
-            Err(()) => {
+            Err(_) => {
                 self.blocked = true;
                 return Err(DurableError::RemoteUncertain);
             }
