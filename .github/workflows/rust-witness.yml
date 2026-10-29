@@ -15,38 +15,15 @@ jobs:
           persist-credentials: false
       - name: Install pinned Rust
         run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
-      - name: Resolve initial witness lock
+      - name: Fetch locked dependencies
         working-directory: rust/tl-witness-service
-        run: |
-          cargo generate-lockfile
-          cargo fetch
-          echo LOCK_BEGIN
-          base64 -w0 Cargo.lock
-          echo
-          echo LOCK_END
-      - name: Format for initial review
-        working-directory: rust/tl-witness-service
-        run: |
-          cargo fmt --all
-          echo SERVICE_BEGIN
-          base64 -w0 src/lib.rs
-          echo
-          echo SERVICE_END
-          echo TEST_BEGIN
-          base64 -w0 tests/cas.rs
-          echo
-          echo TEST_END
-          echo CLI_BEGIN
-          base64 -w0 src/bin/witnessctl.rs
-          echo
-          echo CLI_END
-          echo CLI_TEST_BEGIN
-          base64 -w0 tests/cli.rs
-          echo
-          echo CLI_TEST_END
-      - name: Unit and synthetic-key CAS tests
+        run: cargo fetch --locked
+      - name: Unit, CLI permissions, synthetic-key CAS tests
         working-directory: rust/tl-witness-service
         run: cargo test --locked --offline
       - name: Strict clippy
         working-directory: rust/tl-witness-service
         run: cargo clippy --locked --offline --all-targets -- -D warnings
+      - name: Verify committed formatting
+        working-directory: rust/tl-witness-service
+        run: cargo fmt --all -- --check
