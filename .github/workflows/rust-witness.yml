@@ -36,6 +36,14 @@ jobs:
           base64 -w0 tests/cas.rs
           echo
           echo TEST_END
+          echo CLI_BEGIN
+          base64 -w0 src/bin/witnessctl.rs
+          echo
+          echo CLI_END
+          echo CLI_TEST_BEGIN
+          base64 -w0 tests/cli.rs
+          echo
+          echo CLI_TEST_END
       - name: Unit and synthetic-key CAS tests
         working-directory: rust/tl-witness-service
         run: cargo test --locked --offline
