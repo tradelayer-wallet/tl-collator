@@ -282,7 +282,8 @@ impl WitnessService {
 
 impl WitnessTransport for WitnessService {
     fn latest(&mut self, challenge: &str) -> Result<String, WitnessTransportError> {
-        self.attest_latest(challenge).map_err(|_| WitnessTransportError::Unavailable)
+        self.attest_latest(challenge)
+            .map_err(|_| WitnessTransportError::Unavailable)
     }
     fn cas_signed(
         &mut self,
@@ -292,6 +293,7 @@ impl WitnessTransport for WitnessService {
     ) -> Result<String, WitnessTransportError> {
         self.compare_and_swap(expected, signed_entry)
             .map_err(|_| WitnessTransportError::Unavailable)?;
-        self.attest_latest(challenge).map_err(|_| WitnessTransportError::Unavailable)
+        self.attest_latest(challenge)
+            .map_err(|_| WitnessTransportError::Unavailable)
     }
 }

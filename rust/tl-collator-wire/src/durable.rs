@@ -273,7 +273,9 @@ fn scan(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WitnessTransportError { Unavailable }
+pub enum WitnessTransportError {
+    Unavailable,
+}
 
 pub trait WitnessTransport {
     /// The witness returns its actual signed latest head, not one chosen by the
