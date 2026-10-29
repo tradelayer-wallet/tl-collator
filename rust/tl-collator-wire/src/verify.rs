@@ -116,6 +116,7 @@ pub struct Checkpoint {
     pub seen_orders: usize,
 }
 
+#[derive(Clone)]
 pub struct VerifiedReplay {
     collator_id: String,
     collator_pubkey: PublicKey,

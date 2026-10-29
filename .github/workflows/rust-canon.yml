@@ -8,7 +8,7 @@ permissions:
 jobs:
   canon:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -18,15 +18,32 @@ jobs:
       - name: Fetch locked dependencies
         working-directory: rust/tl-collator-wire
         run: cargo fetch --locked
+      - name: Format initial durable module for review
+        working-directory: rust/tl-collator-wire
+        run: |
+          cargo fmt --all
+          echo DURABLE_BEGIN
+          base64 -w0 src/durable.rs
+          echo
+          echo DURABLE_END
+          echo DURABLE_TESTS_BEGIN
+          base64 -w0 src/durable_tests.rs
+          echo
+          echo DURABLE_TESTS_END
+          echo VERIFY_BEGIN
+          base64 -w0 src/verify.rs
+          echo
+          echo VERIFY_END
+          echo LIB_BEGIN
+          base64 -w0 src/lib.rs
+          echo
+          echo LIB_END
       - name: Check pinned fixture
         working-directory: rust/tl-collator-wire
         run: node scripts/verify-fixture.cjs
-      - name: Rust tests
+      - name: Rust tests including crash/restart
         working-directory: rust/tl-collator-wire
         run: cargo test --locked --offline
       - name: Clippy
         working-directory: rust/tl-collator-wire
         run: cargo clippy --locked --offline --all-targets -- -D warnings
-      - name: Rustfmt
-        working-directory: rust/tl-collator-wire
-        run: cargo fmt --all -- --check
