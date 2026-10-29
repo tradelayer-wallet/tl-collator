@@ -336,5 +336,4 @@ impl DurableTape {
 enum FaultPoint {None,PartialWrite,AfterDataSync,AfterAnchorRename}
 
 #[cfg(test)]
-#[path = "durable_tests.rs"]
-mod tests;
+include!("durable_tests.rs");
