@@ -6,7 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tl_collator_wire::{
-    order_id, sha256_hex, tape_entry_hash, tape_signature_hash,
+    order_id, tape_entry_hash, tape_signature_hash,
     verify::Checkpoint, witness::{WitnessError, WitnessScope},
 };
 use tl_witness_service::{Config, Error, WitnessService};
