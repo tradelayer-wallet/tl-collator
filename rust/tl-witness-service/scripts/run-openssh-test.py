@@ -39,6 +39,11 @@ daemon=Path(args.sshd).resolve(strict=True)
 for binary in (test,daemon,*[binary_dir/name for name in ('witnessctl','witness-export','witness-ssh-gate')]):
     if not binary.is_file():
         parser.error('missing test artifact: '+str(binary))
+required_test='real_openssh_recovery_and_authorization'
+listing=subprocess.run([str(test),'--list','--ignored','--exact',required_test],capture_output=True,text=True,check=True,timeout=10)
+names=[line.removesuffix(': test') for line in listing.stdout.splitlines() if line.endswith(': test')]
+if names!=[required_test]:
+    parser.error('exact required OpenSSH test is missing')
 with tempfile.TemporaryDirectory(prefix='tl-openssh-namespace-') as temporary:
     fixture=Path(temporary)
     passwd=Path('/etc/passwd').read_text()

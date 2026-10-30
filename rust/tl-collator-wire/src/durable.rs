@@ -168,12 +168,19 @@ fn write_anchor(
         let _ = fs::remove_file(&temp);
         return Err(DurableError::Io(error));
     }
+    #[cfg(all(test, unix))]
+    crash_tests::pause_at(crash_tests::CrashStage::AfterCheckpointTempSync);
     drop(file);
     fs::rename(&temp, path)?;
+    #[cfg(all(test, unix))]
+    crash_tests::pause_at(crash_tests::CrashStage::AfterCheckpointRename);
     if inject {
         return Err(DurableError::InjectedWriteFailure);
     }
-    sync_directory(dir)
+    sync_directory(dir)?;
+    #[cfg(all(test, unix))]
+    crash_tests::pause_at(crash_tests::CrashStage::AfterDirectorySync);
+    Ok(())
 }
 
 /// Reads at most MAX_INPUT_BYTES+2 bytes per record; never allocates an entire
@@ -487,12 +494,16 @@ impl DurableTape {
             .bytes
             .checked_add(bytes.len() as u64)
             .ok_or(DurableError::TooLarge)?;
+        #[cfg(all(test, unix))]
+        crash_tests::pause_at(crash_tests::CrashStage::BeforeTapeWrite);
         self.tape.seek(SeekFrom::Start(self.bytes))?;
         if point == FaultPoint::PartialWrite {
             if let Err(error) = self.tape.write_all(&bytes[..bytes.len() / 2]) {
                 self.abort_partial(self.bytes)?;
                 return Err(DurableError::Io(error));
             }
+            #[cfg(all(test, unix))]
+            crash_tests::pause_at(crash_tests::CrashStage::PartialTapeWrite);
             self.abort_partial(self.bytes)?;
             return Err(DurableError::InjectedWriteFailure);
         }
@@ -504,6 +515,8 @@ impl DurableTape {
             self.abort_partial(self.bytes)?;
             return Err(DurableError::Io(error));
         }
+        #[cfg(all(test, unix))]
+        crash_tests::pause_at(crash_tests::CrashStage::AfterTapeSync);
         if point == FaultPoint::AfterDataSync {
             // The complete signed entry is durable, but no success was
             // acknowledged. Reopen must verify and reconcile its anchor.
@@ -529,6 +542,8 @@ impl DurableTape {
             return Err(DurableError::CommitUnknown);
         }
         self.bytes = next_bytes;
+        #[cfg(all(test, unix))]
+        crash_tests::pause_at(crash_tests::CrashStage::BeforeAcknowledgment);
         Ok(next)
     }
 }
@@ -632,3 +647,6 @@ enum FaultPoint {
 
 #[cfg(test)]
 include!("durable_tests.rs");
+
+#[cfg(all(test, unix))]
+mod crash_tests;

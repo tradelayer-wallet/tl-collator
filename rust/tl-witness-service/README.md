@@ -9,6 +9,10 @@ The optional server-side [forced-command gate](FORCED_COMMAND.md) fixes role,
 scope and environment from administrator policy. Its CI test uses real encrypted
 loopback OpenSSH with generated credentials and an explicit recovery drill.
 
+[Process-crash drills](PROCESS_CRASH_DRILLS.md) kill real writers at seven
+storage commit boundaries and kill the independent witness process before
+acknowledgment, then verify explicit recovery without production fault hooks.
+
 The witness is a **separate Rust package**, deliberately not linked into the
 live TypeScript collator server. Its persistence is a verified append-only copy
 of signed collator entries using the already audited Rust DurableTape primitive.

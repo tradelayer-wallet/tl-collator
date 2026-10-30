@@ -12,9 +12,9 @@ mod tests {
     };
     static TEST_SEQUENCE: AtomicU64=AtomicU64::new(0);
 
-    struct TestDir(PathBuf);
+    pub(super) struct TestDir(pub(super) PathBuf);
     impl TestDir {
-        fn new()->Self {
+        pub(super) fn new()->Self {
             let nanos=SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
             let id=TEST_SEQUENCE.fetch_add(1,Ordering::Relaxed);
             let path=std::env::temp_dir().join(
@@ -23,9 +23,9 @@ mod tests {
             fs::create_dir(&path).unwrap();
             Self(path)
         }
-        fn tape(&self)->PathBuf{self.0.join("orders.ndjson")}
-        fn anchor(&self)->PathBuf{self.0.join("orders.checkpoint")}
-        fn open(&self,mode:ImportMode)->Result<DurableTape,DurableError>{
+        pub(super) fn tape(&self)->PathBuf{self.0.join("orders.ndjson")}
+        pub(super) fn anchor(&self)->PathBuf{self.0.join("orders.checkpoint")}
+        pub(super) fn open(&self,mode:ImportMode)->Result<DurableTape,DurableError>{
             DurableTape::open(&self.0,"orders","collator-1",&key_hex(&[3u8;32]),256,mode)
         }
     }
@@ -38,11 +38,11 @@ mod tests {
     fn secret(bytes:&[u8;32])->SecretKey{
         SecretKey::from_slice(bytes).unwrap()
     }
-    fn key_hex(secret_bytes:&[u8;32])->String{
+    pub(super) fn key_hex(secret_bytes:&[u8;32])->String{
         let ctx=Secp256k1::new();
         hex(&PublicKey::from_secret_key(&ctx,&secret(secret_bytes)).serialize())
     }
-    fn sign(hash:&str,secret_bytes:&[u8;32])->String{
+    pub(super) fn sign(hash:&str,secret_bytes:&[u8;32])->String{
         let ctx=Secp256k1::new();
         let mut digest=[0u8;32];
         for (i,byte) in digest.iter_mut().enumerate(){
@@ -81,7 +81,7 @@ mod tests {
         value["sigCollator"]=json!(sign(&payload,&[3u8;32]));
         serde_json::to_string(&value).unwrap()
     }
-    fn new_line(n:u64,seq:u64,previous:&str)->String{
+    pub(super) fn new_line(n:u64,seq:u64,previous:&str)->String{
         entry(seq,previous,order(n,&[1u8;32],"NEW",None))
     }
     fn write_unanchored_line(dir:&TestDir,line:&str){

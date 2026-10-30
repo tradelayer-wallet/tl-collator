@@ -17,7 +17,9 @@ jobs:
         run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
       - name: Fetch locked dependencies
         working-directory: rust/tl-witness-service
-        run: cargo fetch --locked
+        run: |
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path ../tl-collator-wire/Cargo.toml
       - name: Verify committed formatting
         working-directory: rust/tl-witness-service
         run: cargo fmt --all -- --check
@@ -27,6 +29,14 @@ jobs:
       - name: Strict clippy
         working-directory: rust/tl-witness-service
         run: cargo clippy --locked --offline --all-targets -- -D warnings
+      - name: Build portable process-crash drills
+        working-directory: rust/tl-witness-service
+        run: |
+          cargo test --locked --offline --test process_crash --no-run --message-format=json > "$RUNNER_TEMP/witness-process-artifacts.jsonl"
+          cargo test --locked --offline --manifest-path ../tl-collator-wire/Cargo.toml --lib --no-run --message-format=json > "$RUNNER_TEMP/wire-process-artifacts.jsonl"
+      - name: SIGKILL sync/rename/ack matrix and witness-process recovery
+        working-directory: rust/tl-witness-service
+        run: python3 scripts/run-process-crash-tests.py --wire-artifacts "$RUNNER_TEMP/wire-process-artifacts.jsonl" --witness-artifacts "$RUNNER_TEMP/witness-process-artifacts.jsonl"
       - name: Build real OpenSSH integration test
         working-directory: rust/tl-witness-service
         run: cargo test --locked --offline --test openssh --no-run --message-format=json > "$RUNNER_TEMP/witness-ssh-artifacts.jsonl"
