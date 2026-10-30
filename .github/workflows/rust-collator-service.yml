@@ -5,6 +5,7 @@ on:
       - 'rust/tl-collator-service/**'
       - 'rust/tl-collator-wire/**'
       - 'rust/tl-rpc-router/**'
+      - 'rust/tl-witness-service/**'
       - '.github/workflows/rust-collator-service.yml'
   workflow_dispatch:
 permissions:

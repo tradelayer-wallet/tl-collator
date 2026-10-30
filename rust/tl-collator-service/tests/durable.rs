@@ -110,3 +110,86 @@ fn reducer_runs_on_the_durable_tape() {
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0]["order"]["orderId"], o["orderId"]);
 }
+
+#[test]
+fn durable_adapter_indexes_the_wire_tape_format() {
+    use tl_collator_service::tapeindex::{read_range_at, TapeIndex};
+    use tl_collator_wire::verify::VerifiedReplay;
+    let dir = Dir::new("index");
+    let file = dir.0.join("orders.ndjson");
+    let mut t = open(&dir).with_index(4, 64).unwrap();
+    for n in 1..=15 {
+        t.append_order(&new_order(21, n), T0 + n).unwrap();
+    }
+    let bytes = std::fs::read(&file).unwrap();
+    let idx = t.index().unwrap().clone();
+    assert_eq!(
+        idx.entries().iter().map(|e| e.seq).collect::<Vec<_>>(),
+        vec![1, 5, 9, 13]
+    );
+    assert_eq!(idx.tape_size(), bytes.len() as u64);
+    assert_eq!(idx.last_seq(), Some(15));
+    // Extended on append == rebuilt from the file the wire crate wrote.
+    assert_eq!(TapeIndex::build(&bytes, 4, 64).unwrap(), idx);
+    // Every indexed offset starts the wire line carrying that seq.
+    for e in idx.entries() {
+        let rest = &bytes[e.offset as usize..];
+        let line = rest.split(|b| *b == b'\n').next().unwrap();
+        let v: serde_json::Value = serde_json::from_slice(line).unwrap();
+        assert_eq!(v["seq"], e.seq);
+        assert_eq!(v["collatorId"], COLLATOR);
+    }
+    // The wire crate accepts the whole file, and indexed reads return its exact lines.
+    let replay = VerifiedReplay::from_ndjson(
+        std::io::BufReader::new(std::fs::File::open(&file).unwrap()),
+        COLLATOR,
+        &secret(3).public_key_hex(),
+        256,
+    )
+    .unwrap();
+    assert_eq!(replay.checkpoint().last_seq, 15);
+    let text = String::from_utf8(bytes.clone()).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    for from in 0..=17u64 {
+        let got = t.read_range(from, 100).unwrap();
+        let want: Vec<(u64, &str)> = lines
+            .iter()
+            .enumerate()
+            .map(|(i, l)| (i as u64 + 1, *l))
+            .filter(|(s, _)| *s >= from)
+            .collect();
+        assert_eq!(
+            got.iter()
+                .map(|e| (e.seq, e.line.as_str()))
+                .collect::<Vec<_>>(),
+            want,
+            "from {from}"
+        );
+        let mut f = std::fs::File::open(&file).unwrap();
+        let plain = read_range_at(&mut f, None, from, 100).unwrap();
+        assert_eq!(plain.entries, got);
+    }
+    let r = read_range_at(&mut std::fs::File::open(&file).unwrap(), Some(&idx), 11, 2).unwrap();
+    assert!(r.used_index && !r.index_rejected);
+    assert_eq!(
+        r.entries.iter().map(|e| e.seq).collect::<Vec<_>>(),
+        vec![11, 12]
+    );
+    drop(t);
+
+    // Reopen: rebuilt from disk, appends keep extending it.
+    let mut t = open(&dir).with_index(4, 64).unwrap();
+    assert_eq!(t.index().unwrap(), &idx);
+    t.append_order(&new_order(21, 16), T0 + 16).unwrap();
+    t.append_order(&new_order(21, 17), T0 + 17).unwrap();
+    assert_eq!(
+        t.index()
+            .unwrap()
+            .entries()
+            .iter()
+            .map(|e| e.seq)
+            .collect::<Vec<_>>(),
+        vec![1, 5, 9, 13, 17]
+    );
+    assert_eq!(t.read_range(17, 5).unwrap().len(), 1);
+}

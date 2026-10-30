@@ -19,10 +19,14 @@ pub mod manifest;
 pub mod order;
 pub mod peer;
 pub mod ratelimit;
+pub mod server;
 pub mod service;
+pub mod signaling;
 pub mod signer;
 pub mod tape;
+pub mod tapeindex;
 pub mod wire;
+pub mod witnessed;
 
 pub use peer::HostSession;
 pub use service::{Out, Service, ServiceParts};

@@ -3,3 +3,6 @@ import TlCollatorService.Lru
 import TlCollatorService.Clearlist
 import TlCollatorService.Admission
 import TlCollatorService.Replay
+import TlCollatorService.Signaling
+import TlCollatorService.TapeIndex
+import TlCollatorService.Witnessed

@@ -211,6 +211,7 @@ dependencies = [
  "serde_json",
  "tl-collator-wire",
  "tl-rpc-router",
+ "tl-witness-service",
 ]
 
 [[package]]
@@ -230,6 +231,15 @@ dependencies = [
  "secp256k1",
  "serde_json",
  "sha2",
+ "tl-collator-wire",
+]
+
+[[package]]
+name = "tl-witness-service"
+version = "0.1.0"
+dependencies = [
+ "secp256k1",
+ "serde_json",
  "tl-collator-wire",
 ]
 

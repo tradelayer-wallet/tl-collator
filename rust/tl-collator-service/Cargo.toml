@@ -11,3 +11,6 @@ tl-collator-wire = { path = "../tl-collator-wire" }
 tl-rpc-router = { path = "../tl-rpc-router" }
 serde_json = "=1.0.145"
 secp256k1 = { version = "=0.29.1", default-features = true }
+
+[dev-dependencies]
+tl-witness-service = { path = "../tl-witness-service" }

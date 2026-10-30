@@ -6,7 +6,10 @@ nothing pushed. Inspected TypeScript (blob SHAs at the baseline):
 `src/index.ts` 43a5f2ec, `config.ts` 9a6af69d, `ratelimit.ts` f9f166f3, `lru.ts` b7fe32a7,
 `clearlist.ts` 3d3f2b4f, `manifest.ts` 6e9ffb01, `bitvmStatus.ts` fd1a5eab, `ipIntel.ts` 87b4c2ee,
 `peerSession.ts` 26868f90, `auditLog.ts` 52abd4dc, `schema.ts` 1e42f149, `validate.ts` 1e34cd7e,
-`types.ts` 81435d85, `tape.ts` 35a29559, plus `spec/schemas/*.json`.
+`types.ts` 81435d85, `tape.ts` 35a29559, `tapeIndex.ts` d12b1c53, `wrtc.d.ts` c0201637, plus
+`spec/schemas/*.json`. The second slice (signaling, sparse tape index, `WitnessedTape` adapter,
+`ServerConfig`) was written against the same TypeScript blobs, on top of `tl-collator-wire`
+and `tl-witness-service` as committed on `master`.
 
 The crate owns no socket, timer, file, key or clock. The host feeds it session ids, text frames,
 parsed HTTP requests and `now_ms` (unix milliseconds, never decreasing: `tl-rpc-router` latches a
@@ -31,6 +34,10 @@ the ledger rules stay in `tl-collator-wire`; provider routing stays in `tl-rpc-r
 | `tape.ts` (append/replay) | `tape::{TapeStore, MemoryTape, DurableSignedTape}` | commits through `tl-collator-wire` |
 | `index.ts` WS message handlers | `Service::on_message`, `pump_replay`, `channel_*`, `close_session`, `expire` | HELLO, SUBMIT, TAPE_SUB, TAPE_ENTRY, TAPE_END, RPC_ADVERTISE, RPC_REQ, RPC_RES, PING/PONG, ERR |
 | `index.ts` HTTP handler | `Service::handle_http`, `proxy_done`, `http_abort` | `/health`, `/manifest`, `/attestation/ip`, `/rpc/providers`, `/rpc/<m>`, `/rpc/route`, `/tl_*`, legacy proxy routes, CORS |
+| `index.ts` 911-1259 `SIGNAL_*` handlers, `wrtc.d.ts`, `peerSession.ts` (`dc`, `sendDc`) | `signaling::SignalSession` (`on_frame`, `on_event`, `expire`), `SignalLimits`, `Action`, `HostEvent` | pure reducer, the host owns the socket and the WebRTC stack |
+| `tapeIndex.ts` + `tape.ts` 70-83, 136-143 (`loadOrBuildIndex`, `replayFromSeq`) | `tapeindex::{TapeIndex, read_range_at}`, `DurableSignedTape::with_index` | same stride rule and lookup; legacy `tape.idx` JSON readable and writable |
+| (`tl-collator-wire` `WitnessedTape`; no TS counterpart: the TS has no witness) | `witnessed::WitnessedSignedTape` (`TapeStore`), `Judgement`, `WitnessPin`, `recheck` | serves only while the witness judgement is `Ok` |
+| `index.ts` 220-227, 1261-1281, `config.ts` TLS fields | `server::ServerConfig::from_config` | validation only; sockets and TLS are host-owned |
 
 `wire` and `order` do not duplicate what `tl-collator-wire` enforces. At append time the wire crate
 re-verifies order id, trader and collator signatures, hash chain, duplicate ids, CANCEL/REPLACE
@@ -55,6 +62,27 @@ recomputation, duplicate check against the tape, trader signature, tape `prechec
 owner), IP policy, clearlist policy, then `TapeStore::append_order`. TAPE_SUB replays the contiguous
 range from the cursor in batches of `replay_batch`; live broadcast reaches a session only after its
 replay finished.
+
+## Signaling, tape index, witnessed tape, server options
+
+```
+SignalSession::new(SignalLimits, now)                     states Idle -> Greeted -> Offering -> Answered -> Established -> Closed
+  on_frame(text, now)  -> Vec<Action>   Send | ApplyOffer{sdp} | AddRemoteCandidate | ClosePeer | CloseSocket{code, reason}
+  on_event(HostEvent)  -> Vec<Action>   AnswerReady | LocalCandidate | PeerFailed | DataChannelOpen | SocketClosed
+  expire(now)          -> Vec<Action>   idle 30 s, answer 15 s, channel-open 60 s (deadline_ms() says when to call)
+TapeIndex::build / build_from_reader / record_append / find_start / to_legacy_json / from_legacy_json
+read_range_at(reader, Option<&TapeIndex>, from_seq, max)  -> RangeRead { entries, used_index, index_rejected }
+DurableSignedTape::new(..).with_index(stride, max_entries)       WitnessedSignedTape::open(&WitnessedOpen, signer, transport)
+  recheck(receipt_json, challenge) -> Judgement                  checkpoint(), judgement(), state(), with_index(..)
+ServerConfig::from_config(&Config, &Env) -> bind, port, ws_path, max_msg_bytes, tls, scheme(), ws_url()
+```
+
+Close codes: 1009 frame too big, 1008 policy (violation or message budget), 1011 internal, 4408
+timeout. `SignalLimits::validate` rejects inconsistent bounds (SDP and candidate sizes must fit the
+frame limit). Signaling errors reach the peer as `SIGNAL_ERR` with fixed texts; the reason for the
+last refused frame is kept in `last_reject()` for the host's log. The TAPE_SUB replay of
+`Service::pump_replay` calls `TapeStore::read_range`, which the two durable adapters serve through
+the index when one was configured.
 
 ## Compatibility table
 
@@ -98,6 +126,25 @@ Legacy line numbers refer to the baseline blobs above.
 | `px`/`qty` content (decimal syntax, ranges) | unchecked | unchecked (same as `tl-collator-wire`) | unresolved question |
 | `sigAdmin` of infra attestations | passed through for the wallet to verify | same | unresolved question |
 | Faucet/`sendTx`/`buildTx` routes proxy to the relayer for anyone | 703-878 | same, behind the per-address limit and parameter validation | unresolved question |
+| `SIGNAL_HELLO` ignored; `SIGNAL_OFFER` accepted from any state with or without a HELLO | 971-976 | OFFER accepted from `Idle` or `Greeted` (HELLO stays optional); HELLO only once | preserved contract (HELLO optional) |
+| Each `SIGNAL_OFFER` replaces `pc`; the previous `RTCPeerConnection` is never closed (unbounded peer connections per socket) | 976-978 | one offer per session; a second OFFER gets `SIGNAL_ERR unexpected` and changes nothing, so at most one offer is pending | repaired defect |
+| Schema-invalid and unhandled frames (`SIGNAL_ANSWER` from a client, `SIGNAL_ICE` before an offer) dropped silently, unlimited | 962-968, 1248 | `SIGNAL_ERR bad_message`/`unexpected`, counted against a violation budget, then close 1008 | repaired defect |
+| `SIGNAL_ICE` candidate (any JSON object) passed to `addIceCandidate` unchecked, unbounded count | 1248-1253 | rebuilt from `candidate`/`sdpMid`/`sdpMLineIndex`/`usernameFragment`, candidate line shape and size checked, budgets for buffered and total candidates | repaired defect |
+| SDP of any size and content handed to `setRemoteDescription` | 1241 | size bound, `v=0`, line syntax, no control bytes, data-channel (`m=application`) media only | repaired defect |
+| Local ICE sent from `onicecandidate`, i.e. possibly before `SIGNAL_ANSWER` | 980-991, 1241-1244 | local candidates buffered until the ANSWER is out, then relayed in order | repaired defect |
+| Internal failure sent to the peer as `e.message` | 1255-1256 | fixed text `internal error`, then close 1011 (peer connection closed) | repaired defect |
+| No time limit: a socket that never offers, a host that never answers, a channel that never opens live forever | whole handler | idle 30 s, answer 15 s, channel-open 60 s (`SignalLimits`), injected clock, close 4408 | repaired defect |
+| `cleanup` on `close`/`error` | 933-958 | `HostEvent::SocketClosed` -> `ClosePeer` (idempotent), buffers cleared; the host then calls `Service::close_session` | preserved contract |
+| Index lookup `offsets[floor((fromSeq-1)/stride)]`, `0` for `fromSeq <= 1`, same selection in `findStartOffset` | `tapeIndex.ts` 80-85 | `TapeIndex::find_start` returns the greatest indexed `seq <= fromSeq` (identical for every `fromSeq` within the tape) | preserved contract |
+| `fromSeq` beyond the last indexed block falls back to offset `0` (full scan) | `tapeIndex.ts` 80-84 | starts at the last indexed entry; the result is the same (no entry reaches `fromSeq`) | preserved contract (cheaper) |
+| A valid-JSON line without numeric `seq` re-uses the previous `seq` and pushes a second offset at a stride boundary, shifting every later block | `tapeIndex.ts` 49, 72 | `IndexError::BadLine`; gaps, repeats and regressions are `NotContiguous` | repaired defect |
+| Index is trusted when `tapeSize` equals the file size (same-size swap or edit passes); `Number(n) \|\| 0` turns garbage offsets into 0; stride 0 or non-integer accepted from the file | `tapeIndex.ts` 16, 26-29, `tape.ts` 70-75 | strict loader (integer stride `1..=2^32`, offsets strictly increasing from 0), and every lookup checks that the line at the offset carries the expected `seq`, else scans from the start (`index_rejected`) | repaired defect |
+| Index dropped after every append (`this.idx = null`) and rebuilt by a full scan on the next TAPE_SUB; unbounded `offsets` array | `tape.ts` 136, `tapeIndex.ts` 36-87 | `record_append` extends it in place; at `max_entries` the stride doubles and every other entry goes (still a plain stride-`s` index), so memory is bounded | repaired defect |
+| Non-JSON or `seq`-less lines skipped silently in `replayFromSeq`; a torn tail line parsed if it happened to be valid JSON | `tape.ts` 160-171 | contiguity enforced (`TapeError::Invalid` on a gap), an unterminated final line is never served | repaired defect |
+| Plaintext server whenever only one of `TLS_KEY_PATH`/`TLS_CERT_PATH` is set; always `0.0.0.0` | `index.ts` 220-225, 1261 | both-or-neither (also when the `Config` was built by hand), key and certificate must differ; default bind `127.0.0.1`; a non-loopback plaintext listener needs `TL_COLLATOR_ALLOW_PLAINTEXT=1` | repaired defect |
+| `WS_PATH` unrestricted (can shadow `/health`, `/rpc/...`, `/tl_*`); `MAX_MSG_BYTES` only a `ws` option | `index.ts` 227 | plain path charset, no `//`/dot segments, not a dispatcher route; `1024..=1 MiB` rechecked | repaired defect |
+| TS has no witness: the tape file alone decides the head, a restored older tape is served | `tape.ts` 48-69 | `WitnessedSignedTape`: refuses to open on rollback/fork/ahead/wrong scope/outage and latches `Refused` after any non-`Ok` `recheck` | versioned protocol change (opt-in adapter) |
+| `ServerConfig` has no TLS minimum version or cipher policy | n/a | none: the host's TLS stack sets it | unresolved question |
 
 ## Dependencies
 
@@ -105,13 +152,17 @@ Legacy line numbers refer to the baseline blobs above.
 same pin as both crates); `secp256k1 =0.29.1` (parse the trader public key for
 `tl_collator_wire::verify::verify_compact`, and the sample `SecretKeySigner`). `Cargo.lock` started
 as a copy of `tl-rpc-router`'s and only gained this crate's entry; no new third-party crate.
-SHA-256 comes from `tl_collator_wire::sha256_hex`.
+SHA-256 comes from `tl_collator_wire::sha256_hex`. `tl-witness-service` (path) is a **dev-dependency**
+only: the `WitnessedSignedTape` tests run against a real, separately keyed `WitnessService`; the
+library itself depends only on `tl-collator-wire`'s `WitnessTransport`. The lock file gained that
+entry and nothing else.
 
 ## Verification
 
 Rust 1.90.0 (`rust-toolchain.toml`), from `rust/tl-collator-service`:
 
-    cargo test --locked --offline         # 81 tests: 31 reducer, 18 HTTP, 30 unit, 2 durable
+    cargo test --locked --offline         # 136 tests: 31 reducer, 18 HTTP, 30 unit, 3 durable,
+                                          #   25 signaling, 12 tape index, 6 server config, 11 witnessed
     cargo clippy --locked --offline --all-targets -- -D warnings
     cargo fmt --all -- --check
 
@@ -119,7 +170,21 @@ The tests cover success paths, malformed and oversized frames, boundary values (
 LRU capacity, cursor start values), failure and recovery paths (oracle/intel down, provider
 disconnect, timeouts, durable reopen) and a regression for each repaired defect above. The
 broadcast TAPE_ENTRY bytes are re-verified by an independent `VerifiedReplay`; the durable tests
-run the reducer on `DurableTape` under a temp directory (unix only).
+run the reducer on `DurableTape` under a temp directory (unix only). The witnessed tests (unix
+only: the wire crate's witness path needs `/dev/urandom`) open a real `WitnessService` and cover
+rollback by restoring an older tape and anchor, an alternative fully signed fork, a local head ahead
+of the witness, wrong epoch/network/key pins, an unreachable witness, a lost acknowledgment, and
+`recheck` with forked, ahead, replayed-challenge, bad-signature, junk and wrong-scope receipts.
+The signaling tests include a 400-session random walk that asserts every transition is an allowed
+edge and that pending offers, offers accepted and buffered candidates stay within bounds.
+
+**Legacy parity (tape index only).** `scripts/compare-legacy-tapeindex.mjs` imports the pinned
+legacy `src/tapeIndex.ts` (blob `d12b1c53`) unchanged on Node 24 (type stripping) and prints
+`buildIndex`/`findStartOffset`/`isIndexFresh` results for six strides over a 53-line tape;
+`tests/fixtures/tapeindex_legacy.json` is that output and `matches_the_output_of_the_pinned_legacy_module`
+asserts offsets, tape size and 366 lookups against it. The signaling handlers sit inside `index.ts`
+(needs `ws`, `wrtc`, Ajv) and the service layer has no parity harness, so those are tested from the
+source only.
 
 Lean 4 v4.34.1, core only, no `sorry`/`admit`/new axioms (`lean/`):
 
@@ -139,6 +204,17 @@ Lean 4 v4.34.1, core only, no `sorry`/`admit`/new axioms (`lean/`):
 | `nodup_preserved`, `runAll_nodup`, `seq_step` | `submit` | tape ids stay unique over any SUBMIT sequence; each SUBMIT adds zero or one entry |
 | `batch_length_le`, `batch_mem` | `pump_replay` | a pump sends at most `replay_batch` entries, all inside `cursor..last` |
 | `replay_complete`, `replay_nodup`, `replay_bounds`, `replay_beyond_end` | repeated `pump_replay` | the replay is exactly the contiguous range `cursor..last`: no gap, no repeat, in order; a start beyond the tape sends nothing |
+| `Signaling.init_inv`, `step_inv`, `run_inv`, `at_most_one_pending`, `peer_needs_one_offer` | `SignalSession::on_frame/on_event/expire` | from `init`, over any input sequence: `pending <= 1` (and `= 1` exactly while `offering`), `offers <= 1`, and a peer exists only after exactly one accepted offer |
+| `Signaling.step_edge`, `closed_absorbing` | same | every transition follows an allowed edge (`edge_allowed`); `closed` is never left |
+| `Signaling.second_offer_ignored`, `answered_only_from_offering`, `established_only_from_answered` | same | an OFFER outside `idle`/`greeted` changes nothing; the answer comes only from `offering` on `answerReady`, the open channel only from `answered` |
+| `TapeIndex.find_sound`, `find_le`, `find_mem` | `TapeIndex::find_start` | the lookup returns an indexed sequence number and never one beyond the target |
+| `TapeIndex.find_max`, `find_none` | same | it is the greatest indexed entry at or before the target; `none` (start of file) only when every entry is beyond it |
+| `TapeIndex.find_matches_legacy` | `find_start` vs `findStartOffset` | on a stride-`s` index the lookup equals the TS formula `floor((t-1)/s)*s+1` (`seqs_sorted`, `mem_seqs`, `find_isSome` support it) |
+| `TapeIndex.pushLen_le_cap` | `TapeIndex::push_line` | appending to a full index (capacity `>= 2`) halves instead of growing: `len <= cap` always |
+| `Witnessed.serves_iff`, `read_requires_serving`, `recheck_latched`, `recheck_serves_iff`, `recheckAll_serves` | `ServeState`, `recheck` | the adapter serves iff its latched judgement is `Ok`; a refusal is never lifted; after any sequence of rechecks it serves only if every receipt judged `Ok` |
+| `Witnessed.judge_ok_exact` | `recheck` | `Ok` means a valid receipt (scope, challenge, signature) and a tape of exactly the witnessed length with the witnessed head |
+| `Witnessed.rollback_not_served`, `fork_not_served`, `ahead_not_served`, `invalid_receipt_not_served` | `recheck` | a witness ahead of the tape, a different head, a local head ahead of the witness, or a receipt invalid for the pinned scope/challenge/key is never served |
+| `Witnessed.append_refused_unchanged`, `tape_changes_only_when_committed`, `uncommitted_append_latches`, `committed_append_extends`, `append_grows_by_at_most_one` | `append_order` | nothing is appended while refused; the tape changes only after the witness CAS and local commit both succeeded; a failed attempt latches `Uncertain` and leaves the tape as it was |
 
 `decide` examples in the Lean files replay the vectors of `bucket_burst_refill_and_cap`,
 `bucket_cost_zero_and_over_capacity_and_backwards_clock`, `lru_set_evicts_oldest_and_refreshes_on_add`,
@@ -149,18 +225,45 @@ and ids to `Nat`, strings to lists, `u32`/`u64` overflow (the Rust code clamps i
 the refill arithmetic) and every cryptographic check to a Boolean gate; it does not model
 `HashMap` ordering, the router, HTTP or JSON.
 
+The new modules (`Signaling.lean`, `TapeIndex.lean`, `Witnessed.lean`, each in its own namespace)
+replay the vectors of `full_handshake_hello_offer_answer_ice_open`,
+`at_most_one_pending_offer_and_one_offer_per_session`, `unanswered_offer_times_out_and_closes_the_peer`,
+`data_channel_must_open_in_time_and_established_has_no_deadline`,
+`host_failure_sends_fixed_text_closes_peer_and_ignores_the_rest`, `edge_table_matches_the_documented_diagram`,
+`lookup_is_the_greatest_indexed_seq_at_or_before_and_never_beyond` (stride 7), the rollback/fork/ahead
+tests of `witnessed.rs` and `nothing_is_committed_or_visible_when_the_witness_is_down`. They abstract
+SDP and candidate content, counters, buffers and the clock (signaling), byte offsets and file IO
+(index; the Rust tests tie each indexed `seq` to its offset), and entry hashes, signatures and the
+witness CAS (witnessed tape: hashes are `Nat`, receipt validity is an input fact checked by
+`tl-collator-wire`).
+
 ## Not done
 
-- The WebSocket/WebRTC signaling handlers (`SIGNAL_HELLO/OFFER/ANSWER/ICE`, `index.ts` 911-1259),
-  the HTTP/HTTPS/WebSocket servers, TLS, collator key file loading, timers and the sparse tape index
-  (`tapeIndex.ts`; the durable adapter scans the NDJSON file) are host work. `ICE_SERVERS_JSON` is
-  validated and kept in `Config` for the host.
-- No legacy-parity harness. `lru.ts`, `ratelimit.ts` and the other helpers are TypeScript and Node 18
+- Sockets, TLS, the WebSocket upgrade, the WebRTC stack (`wrtc`, SDP, ICE, data channels), timers
+  (calling `SignalSession::expire` at `deadline_ms`), the collator key file and the consumers of
+  `ServerConfig` are **host-owned**; this crate never opens a socket and reads no certificate or key.
+  The signaling reducer returns `Action`s for the host to perform, `ServerConfig` only validates the
+  options. The host maps a signaling socket to a `HostSession`, calls `Service::open_session` on
+  connect (the legacy `connMax` check) and `Service::close_session` after `CloseSocket`.
+  `ICE_SERVERS_JSON` is validated and kept in `Config` and `ServerConfig::ice_servers`.
+- TLS minimum version and cipher policy are not expressed (host TLS stack); `ServerConfig` does
+  not check that the key matches the certificate.
+- The signaling SDP and candidate checks are bounds and shape checks, not an RFC 4566/8839 parser;
+  the host's SDP engine stays the authority. Only data-channel (`m=application`) offers are accepted.
+- `WitnessedSignedTape` needs a unix filesystem (the wire crate's witness path reads
+  `/dev/urandom` and `DurableTape` syncs directories). It rebuilds a verified mirror of the tape at
+  open (linear), `recheck` re-verifies the whole tape (linear), a latched refusal needs a restart, and
+  the witness transport (SSH, TLS, key custody, restoring history after an ambiguous commit) is
+  still the wire crate's open gate. A witness-ahead state after a lost acknowledgment refuses to open;
+  recovery is an operator action.
+- The tape index is built by one scan at open (`with_index`) and never persisted by the adapters
+  (`to_legacy_json`/`from_legacy_json` exist for hosts that want the file); a loaded legacy index
+  cannot be extended in place (its file does not record the last `seq`).
+- No service-layer legacy-parity harness: `lru.ts`, `ratelimit.ts` and the other helpers are TypeScript and Node 18
   in WSL cannot run them without a compile step; behaviour was derived from the source and checked
   by tests written from it. `bitvmStatus` was ported from source and the `test/bitvm-status.test.mjs`
   assertions (field names, context id shape, non-ready message) are mirrored on synthetic artifacts;
   the real referee artifacts were not used.
-- `WitnessedTape` (independent witness) is not wrapped in a `TapeStore` adapter yet.
 - Provider authentication (`RPC_CHALLENGE`/proof in `RPC_ADVERTISE`) has had no independent protocol
   review and no provider implements it.
 - IP-intel and clearlist traits are synchronous: a real adapter must bound its own latency, since a

@@ -5,9 +5,10 @@
 //! duplicate order ids, the owner of CANCEL/REPLACE targets and capacity before any state
 //! changes. Nothing is appended that the wire crate would refuse to replay.
 use crate::signer::{DigestSigner, SignError};
+use crate::tapeindex::{read_range_at, TapeIndex};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::path::PathBuf;
 use tl_collator_wire::durable::{DurableError, DurableTape};
 use tl_collator_wire::verify::{VerifiedReplay, VerifyError};
@@ -89,7 +90,7 @@ pub trait TapeStore {
     fn read_range(&self, from_seq: u64, max: usize) -> Result<Vec<TapeEntry>, TapeError>;
 }
 
-fn signed_line(
+pub(crate) fn signed_line(
     collator_id: &str,
     seq: u64,
     prev_hash: &str,
@@ -151,27 +152,7 @@ impl<S: DigestSigner> TapeStore for MemoryTape<S> {
     }
 
     fn precheck(&self, order: &Value) -> Result<(), TapeError> {
-        let kind = order.get("kind").and_then(Value::as_str).unwrap_or("");
-        let field = match kind {
-            "CANCEL" => "cancelsOrderId",
-            "REPLACE" => "replacesOrderId",
-            _ => return Ok(()),
-        };
-        let target = order
-            .get(field)
-            .and_then(Value::as_str)
-            .ok_or(TapeError::Invalid)?;
-        match self.replay.owner_of(target) {
-            None => Err(TapeError::UnknownOrder),
-            Some(owner) => {
-                let me = owner_of_order(order).ok_or(TapeError::Invalid)?;
-                if owner.eq_ignore_ascii_case(me) {
-                    Ok(())
-                } else {
-                    Err(TapeError::NotOwner)
-                }
-            }
-        }
+        precheck_order(&self.replay, order)
     }
 
     fn append_order(&mut self, order: &Value, received_ts: u64) -> Result<TapeEntry, TapeError> {
@@ -213,6 +194,7 @@ pub struct DurableSignedTape<S: DigestSigner> {
     signer: S,
     tape: DurableTape,
     file: PathBuf,
+    index: Option<TapeIndex>,
 }
 
 impl<S: DigestSigner> DurableSignedTape<S> {
@@ -223,7 +205,23 @@ impl<S: DigestSigner> DurableSignedTape<S> {
             signer,
             tape,
             file,
+            index: None,
         }
+    }
+
+    /// Build the sparse index (`stride`, at most `max_entries` entries) from the tape file.
+    /// Replay then starts at the indexed offset; without it (or when the file no longer
+    /// matches it) replay scans from the start. Appends extend the index.
+    pub fn with_index(mut self, stride: u64, max_entries: usize) -> Result<Self, TapeError> {
+        let f = std::fs::File::open(&self.file).map_err(|_| TapeError::Io)?;
+        let idx = TapeIndex::build_from_reader(BufReader::new(f), stride, max_entries)
+            .map_err(|_| TapeError::Invalid)?;
+        self.index = Some(idx);
+        Ok(self)
+    }
+
+    pub fn index(&self) -> Option<&TapeIndex> {
+        self.index.as_ref()
     }
 }
 
@@ -248,6 +246,14 @@ impl<S: DigestSigner> TapeStore for DurableSignedTape<S> {
             &self.signer,
         )?;
         let after = self.tape.append_signed(&line)?;
+        if let Some(idx) = self.index.as_mut() {
+            if idx
+                .record_append(after.last_seq, line.len() as u64 + 1)
+                .is_err()
+            {
+                self.index = None; // rebuilt by the host; reads fall back to a scan
+            }
+        }
         Ok(TapeEntry {
             seq: after.last_seq,
             line,
@@ -255,26 +261,33 @@ impl<S: DigestSigner> TapeStore for DurableSignedTape<S> {
     }
 
     fn read_range(&self, from_seq: u64, max: usize) -> Result<Vec<TapeEntry>, TapeError> {
-        let file = std::fs::File::open(&self.file).map_err(|_| TapeError::Io)?;
-        let mut out = Vec::new();
-        for line in BufReader::new(file).lines() {
-            let line = line.map_err(|_| TapeError::Io)?;
-            if line.is_empty() {
-                continue;
-            }
-            let value: Value = serde_json::from_str(&line).map_err(|_| TapeError::Invalid)?;
-            let seq = value
-                .get("seq")
-                .and_then(Value::as_u64)
-                .ok_or(TapeError::Invalid)?;
-            if seq < from_seq {
-                continue;
-            }
-            out.push(TapeEntry { seq, line });
-            if out.len() >= max {
-                break;
+        let mut file = std::fs::File::open(&self.file).map_err(|_| TapeError::Io)?;
+        Ok(read_range_at(&mut file, self.index.as_ref(), from_seq, max)?.entries)
+    }
+}
+
+/// CANCEL/REPLACE owner check against a verified replay (shared by the in-memory and the
+/// witnessed adapters; the wire crate re-checks at commit regardless).
+pub(crate) fn precheck_order(replay: &VerifiedReplay, order: &Value) -> Result<(), TapeError> {
+    let kind = order.get("kind").and_then(Value::as_str).unwrap_or("");
+    let field = match kind {
+        "CANCEL" => "cancelsOrderId",
+        "REPLACE" => "replacesOrderId",
+        _ => return Ok(()),
+    };
+    let target = order
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or(TapeError::Invalid)?;
+    match replay.owner_of(target) {
+        None => Err(TapeError::UnknownOrder),
+        Some(owner) => {
+            let me = owner_of_order(order).ok_or(TapeError::Invalid)?;
+            if owner.eq_ignore_ascii_case(me) {
+                Ok(())
+            } else {
+                Err(TapeError::NotOwner)
             }
         }
-        Ok(out)
     }
 }
