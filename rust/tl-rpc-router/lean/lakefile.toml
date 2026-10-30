@@ -1,0 +1,5 @@
+name = "tl_rpc_router"
+defaultTargets = ["TlRpcRouter"]
+
+[[lean_lib]]
+name = "TlRpcRouter"
