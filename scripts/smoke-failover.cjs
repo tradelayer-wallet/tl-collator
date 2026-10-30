@@ -6,6 +6,10 @@ const ecc = require('tiny-secp256k1');
 const wrtc = require('wrtc');
 const WS = require('ws');
 
+// TL-Canon comes from the collator's own build (src/canonical.ts), so the scripts and the
+// collator cannot disagree. Run `npm run build` first; dist/ is loaded on first use.
+let stableStringify;
+
 global.RTCPeerConnection = wrtc.RTCPeerConnection;
 
 function parseArgs(argv) {
@@ -29,19 +33,7 @@ function sha256Hex(s) {
   return crypto.createHash('sha256').update(s, 'utf8').digest('hex');
 }
 
-function canonicalize(v) {
-  if (Array.isArray(v)) return v.map(canonicalize);
-  if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
-    const out = {};
-    for (const k of Object.keys(v).sort()) out[k] = canonicalize(v[k]);
-    return out;
-  }
-  return v;
-}
 
-function stableStringify(v) {
-  return JSON.stringify(canonicalize(v));
-}
 
 function startCollator(port, dataDir) {
   const env = { ...process.env, PORT: String(port), DATA_DIR: dataDir };
@@ -168,14 +160,14 @@ function buildOrder(seq) {
     clientTs: Date.now(),
   };
   const clientNonce = crypto.randomBytes(16).toString('hex');
-  const orderId = sha256Hex(stableStringify(body) + traderPubKey + clientNonce);
+  // TL-Canon v1 envelope binding (BREAKING): orderId is derived over every
+  // envelope field except orderId/sigTrader — including kind, cancelsOrderId
+  // and replacesOrderId.
+  const signed = { v: 1, kind: 'NEW', body, traderPubKey, clientNonce };
+  const orderId = sha256Hex(stableStringify(signed));
   const sig = ecc.sign(Buffer.from(orderId, 'hex'), priv);
   return {
-    v: 1,
-    kind: 'NEW',
-    body,
-    traderPubKey,
-    clientNonce,
+    ...signed,
     orderId,
     sigTrader: Buffer.from(sig).toString('hex'),
   };
@@ -254,6 +246,7 @@ async function runOnce(cfg) {
 }
 
 async function main() {
+  ({ stableStringify } = await import('../dist/canonical.js'));
   const args = parseArgs(process.argv);
   const cfg = {
     portA: Number(args['port-a'] || 8787),

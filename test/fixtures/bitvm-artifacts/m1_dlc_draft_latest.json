@@ -1,0 +1,193 @@
+{
+  "kind": "m1_dlc_draft",
+  "createdAt": "2026-04-25T18:11:13.549Z",
+  "chain": {
+    "chainId": "litecoin-testnet",
+    "family": "litecoin",
+    "network": "test",
+    "rpcUrl": "http://127.0.0.1:19332",
+    "blockHeight": 4684050
+  },
+  "template": {
+    "templateId": "dlc-receipt-ltc-testnet-v1",
+    "templateHash": "60e19d0c4f34a09a690e679230bf41a63252306e0e06a09e1b090efbcbb7b499"
+  },
+  "roleSet": {
+    "tag": "m1-20260425-141059",
+    "wallet": "tl-wallet",
+    "addresses": {
+      "operator": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+      "oracle": "tltc1qmqh6u982ndpp69e43ey2p4agx09mwwy53qf6qg",
+      "alice": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+      "bob": "tltc1qcn2tp4wr057kzpjx2vue4hcexrhlllz6k6tx4h",
+      "residual": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp"
+    },
+    "pubkeys": {
+      "operator": "028d119c7086ebb97b6cb1c3bd5c62f2f16dd955836bb7d3ba4f3b8d113cb53d11",
+      "oracle": "029ba5c788a9c97d9d56ee66e25edfe06131705f62e5193d208ed46507651a13ea"
+    }
+  },
+  "canonical": {
+    "epochId": "1",
+    "payoutLeafSchema": "(epochId, recipientScriptPubKey, amountSats)",
+    "commitmentPackageSchema": "(epochId, withdrawalRoot, capSats, residualDest)"
+  },
+  "contract": {
+    "eventId": "ltc-testnet-epoch-1-1777140673550",
+    "maturityHeight": 4685058,
+    "refundLocktime": 4685346,
+    "collateralSats": "200000",
+    "bucketCapBps": 500,
+    "realizedPnlBps": 500,
+    "feeBps": 0,
+    "dustCarrySats": "0",
+    "fundingInputs": [
+      {
+        "role": "alice",
+        "txid": "814cc4cdc76a603a1a86dccaaa4339eb15960f5504138c67cbf16013ba79e749",
+        "vout": 0,
+        "amountLtc": "0.001",
+        "amountSats": "100000"
+      },
+      {
+        "role": "bob",
+        "txid": "814cc4cdc76a603a1a86dccaaa4339eb15960f5504138c67cbf16013ba79e749",
+        "vout": 2,
+        "amountLtc": "0.001",
+        "amountSats": "100000"
+      }
+    ],
+    "outputs": {
+      "operatorAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+      "oracleAddress": "tltc1qmqh6u982ndpp69e43ey2p4agx09mwwy53qf6qg",
+      "residualAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp"
+    },
+    "settlement": {
+      "model": "bounded-loss-carry-forward",
+      "bucketCapBps": 500,
+      "realizedPnlBps": 500,
+      "effectivePnlBps": 500,
+      "feeBps": 0,
+      "paths": [
+        {
+          "pathId": "settle-gain",
+          "kind": "settlement",
+          "recipientRole": "alice",
+          "winnerRole": "alice",
+          "winnerAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+          "refundRole": "residual",
+          "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "feeRole": "operator",
+          "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+          "dustRole": "alice",
+          "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+          "bucketCapBps": 500,
+          "realizedPnlBps": 500,
+          "effectivePnlBps": 500,
+          "feeBps": 0,
+          "actualPayoutSats": "10000",
+          "payoutSats": "10000",
+          "feeSats": "0",
+          "refundSats": "190000",
+          "rolloverCollateralSats": "190000",
+          "residualSats": "190000",
+          "dustCarrySats": "0",
+          "defaultOnExpiry": false,
+          "committedRouting": {
+            "winnerRole": "alice",
+            "winnerAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+            "refundRole": "residual",
+            "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+            "feeRole": "operator",
+            "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+            "dustRole": "alice",
+            "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn"
+          }
+        },
+        {
+          "pathId": "settle-loss",
+          "kind": "settlement",
+          "recipientRole": "bob",
+          "winnerRole": "bob",
+          "winnerAddress": "tltc1qcn2tp4wr057kzpjx2vue4hcexrhlllz6k6tx4h",
+          "refundRole": "residual",
+          "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "feeRole": "operator",
+          "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+          "dustRole": "bob",
+          "dustAddress": "tltc1qcn2tp4wr057kzpjx2vue4hcexrhlllz6k6tx4h",
+          "bucketCapBps": 500,
+          "realizedPnlBps": 500,
+          "effectivePnlBps": 500,
+          "feeBps": 0,
+          "actualPayoutSats": "10000",
+          "payoutSats": "10000",
+          "feeSats": "0",
+          "refundSats": "190000",
+          "rolloverCollateralSats": "190000",
+          "residualSats": "190000",
+          "dustCarrySats": "0",
+          "defaultOnExpiry": false,
+          "committedRouting": {
+            "winnerRole": "bob",
+            "winnerAddress": "tltc1qcn2tp4wr057kzpjx2vue4hcexrhlllz6k6tx4h",
+            "refundRole": "residual",
+            "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+            "feeRole": "operator",
+            "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+            "dustRole": "bob",
+            "dustAddress": "tltc1qcn2tp4wr057kzpjx2vue4hcexrhlllz6k6tx4h"
+          }
+        }
+      ],
+      "roll": {
+        "pathId": "roll",
+        "kind": "timeout",
+        "defaultOnExpiry": true,
+        "winnerRole": "residual",
+        "winnerAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+        "refundRole": "residual",
+        "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+        "feeRole": "operator",
+        "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+        "dustRole": "alice",
+        "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+        "rollLocktime": 4685346,
+        "timeoutRemainderSats": "10000",
+        "rolloverCollateralSats": "190000",
+        "residualSats": "190000",
+        "dustCarrySats": "0",
+        "committedRouting": {
+          "winnerRole": "residual",
+          "winnerAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "refundRole": "residual",
+          "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+          "feeRole": "operator",
+          "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+          "dustRole": "alice",
+          "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn"
+        }
+      },
+      "dustCarrySats": "0"
+    },
+    "outcomes": [
+      {
+        "pathId": "settle-gain",
+        "kind": "settlement",
+        "payoutSats": "10000",
+        "feeSats": "0",
+        "refundSats": "190000",
+        "rolloverCollateralSats": "190000"
+      },
+      {
+        "pathId": "settle-loss",
+        "kind": "settlement",
+        "payoutSats": "10000",
+        "feeSats": "0",
+        "refundSats": "190000",
+        "rolloverCollateralSats": "190000"
+      }
+    ]
+  },
+  "artifactHash": "b918da9dbcece1a592592e96476290ed1fdd24832db6ac4436e5ed17ec8ee66a"
+}

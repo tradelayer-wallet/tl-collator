@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stableStringify } from './canonical.js';
+import { findCanonicalViolation, stableStringify } from './canonical.js';
 import { sha256Hex, signWithPrivKeyHex } from './crypto.js';
 import type { Config } from './config.js';
 
@@ -96,13 +96,16 @@ function loadInfraAttestations(cfg: Config): InfraAttestationV1[] | undefined {
       const body = item?.body;
       const sigAdmin = item?.sigAdmin;
       if (!body || typeof body !== 'object') continue;
+      // Entries the canonical serializer cannot represent (fractional or unsafe
+      // numbers, lone surrogates, unsafe keys) are skipped rather than signed.
+      if (findCanonicalViolation(body) !== null) continue;
       if (body.v !== 1) continue;
       if (body.kind !== 'COLLATOR_APPROVAL' && body.kind !== 'BUNDLER_APPROVAL') continue;
       if (!Number.isInteger(body.clearlistId) || body.clearlistId < 0) continue;
       if (typeof body.infraPubKey !== 'string' || !/^[0-9a-fA-F]+$/.test(body.infraPubKey)) continue;
       if (typeof body.infraId !== 'string' || body.infraId.length < 1) continue;
       if (typeof body.ws !== 'string' || body.ws.length < 1) continue;
-      if (!Number.isFinite(Number(body.issuedAt)) || !Number.isFinite(Number(body.expiresAt))) continue;
+      if (!Number.isSafeInteger(body.issuedAt) || !Number.isSafeInteger(body.expiresAt)) continue;
       if (typeof body.nonce !== 'string' || body.nonce.length < 1) continue;
       if (typeof body.adminPubKey !== 'string' || !/^[0-9a-fA-F]+$/.test(body.adminPubKey)) continue;
       if (typeof sigAdmin !== 'string' || !/^[0-9a-fA-F]{128}$/.test(sigAdmin)) continue;

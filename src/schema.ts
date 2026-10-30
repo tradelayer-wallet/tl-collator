@@ -3,12 +3,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
-import type { SignalMsg, WireMsg } from './types.js';
+import type { SignalMsg } from './types.js';
 import type { OrderEnvelopeV1 } from './types.js';
+import { findCanonicalViolation } from './canonical.js';
+
+export interface WireRefusal {
+  code: string;
+  msg: string;
+}
 
 export interface SchemaValidators {
   validateSignalMsg: (x: any) => x is SignalMsg;
-  validateWireMsg: (x: any) => x is WireMsg;
+  /** The ERR a DataChannel message earns, or null when it is a valid WireMsg. */
+  wireRefusal: (x: any) => WireRefusal | null;
   validateOrderEnvelope: (x: any) => x is OrderEnvelopeV1;
   errorsText: () => string;
 }
@@ -57,12 +64,23 @@ export function loadValidators(): SchemaValidators {
       lastErrors = ok ? null : (vSignal.errors || null);
       return ok;
     },
-    validateWireMsg: (x: any): x is WireMsg => {
-      const ok = !!vWire(x);
-      lastErrors = ok ? null : (vWire.errors || null);
-      return ok;
+    wireRefusal: (x: any): WireRefusal | null => {
+      if (vWire(x)) return null;
+      lastErrors = vWire.errors || null;
+      // A TAPE_SUB names the replay's start, so a bad fromSeq is refused as such and never coerced.
+      if (x?.t === 'TAPE_SUB') return { code: 'bad_request', msg: 'invalid TAPE_SUB: fromSeq must be a non-negative safe integer' };
+      return { code: 'SCHEMA_INVALID', msg: 'invalid WireMsg schema' };
     },
     validateOrderEnvelope: (x: any): x is OrderEnvelopeV1 => {
+      // Reject values TL-Canon cannot represent anywhere in the envelope
+      // (incl. the open-ended body): prototype-pollution keys, non-safe-integer
+      // numbers and lone surrogates. Runs before schema validation so nothing
+      // unhashable or unsafe reaches hashing or downstream object handling.
+      const violation = findCanonicalViolation(x);
+      if (violation !== null) {
+        lastErrors = [{ instancePath: '', message: violation, params: {} }];
+        return false;
+      }
       const ok = !!vOrder(x);
       lastErrors = ok ? null : (vOrder.errors || null);
       return ok;

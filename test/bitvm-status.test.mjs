@@ -1,6 +1,11 @@
 import assert from 'assert';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { buildBitvmStatusFromArtifacts } from '../dist/bitvmStatus.js';
+
+// Pinned copies of the referee artifacts, so the test does not depend on a sibling checkout.
+process.env.BITVM_REFEREE_ARTIFACTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'bitvm-artifacts');
 
 function test(name, fn) {
   try {

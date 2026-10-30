@@ -1,0 +1,84 @@
+{
+  "kind": "bitvm_procedural_sync",
+  "createdAt": "2026-04-25T18:15:08.492Z",
+  "propertyId": 380,
+  "holderAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+  "operatorAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+  "oracleAddress": "tltc1qmqh6u982ndpp69e43ey2p4agx09mwwy53qf6qg",
+  "residualAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+  "templateId": "dlc-receipt-ltc-testnet-v1",
+  "templateHash": "60e19d0c4f34a09a690e679230bf41a63252306e0e06a09e1b090efbcbb7b499",
+  "contractId": "ltc-testnet-epoch-1-1777140673550",
+  "fundingTxid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+  "fundedAmountLtc": 0.001539,
+  "state": "SETTLED",
+  "dbRoot": null,
+  "chain": {
+    "network": "test",
+    "blockHeight": 4684050,
+    "mode": "rpc"
+  },
+  "funding": {
+    "collateralSats": "162000",
+    "fundedAmountSats": "153900",
+    "fundingOutpoint": {
+      "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "vout": 0,
+      "valueSats": "162000"
+    }
+  },
+  "settlement": {
+    "route": "roll",
+    "settlementKind": "timeout-refund",
+    "redeemedSats": "153900",
+    "winnerSweepSats": "153900",
+    "refundSats": "8100",
+    "dustCarrySats": "0"
+  },
+  "parallelUtxoIndex": {
+    "chainId": "litecoin-testnet",
+    "fundingTxid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+    "timeoutSpendTxid": "68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062",
+    "transactionCount": 5,
+    "semanticRefCount": 2,
+    "artifactHash": "9a711d63ba3d8f35359b0000877733d351faef1a1a5d477033ac672191112060"
+  },
+  "sourceArtifacts": {
+    "draft": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_dlc_draft_latest.json",
+      "kind": "m1_dlc_draft",
+      "hash": "88670e221bd7f07f9f4a2a5ba8c8b1bfa74557156c329f6a5ec2016988579c13"
+    },
+    "fundingPsbt": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_psbt_latest.json",
+      "kind": "m1_funding_psbt",
+      "hash": "e52227c88b8f6e0b43983fa8e332f815df813728aab109876b5d3e2d2003c316"
+    },
+    "fundingFinal": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_finalized_latest.json",
+      "kind": "m1_funding_finalized",
+      "hash": "0284c3aa0a45a84fd4fe5fb0bc9cfc96fd74e7628bacc4184a8ec42e410f412f"
+    },
+    "challengeBundle": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_bundle_latest.json",
+      "kind": "m1_challenge_bundle",
+      "hash": "ff8e8cbb81c6d89b2b762fa8fac96c974f66dff0396c4830b0eb65f4810f760c"
+    },
+    "challengeWitness": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_witness_latest.json",
+      "kind": "m1_challenge_witness",
+      "hash": "9c3f5bb678fcfcecc1da7d9788b0b1325bf7a0de8939d82395484880b0259450"
+    },
+    "expiryRedemption": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_expiry_redemption_latest.json",
+      "kind": "m1_expiry_redemption",
+      "hash": "45b34ddd6be93d28193c0d391d5fbb8f2a34364dde55722034fbfb9bd08e03fa"
+    },
+    "parallelUtxoIndex": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_parallel_utxo_index_latest.json",
+      "kind": "m1_parallel_utxo_index",
+      "hash": "1579f5e711363fceaaa66a208d7c7c412815e3b42fbc1c104336a9fe90c0a079"
+    }
+  },
+  "artifactHash": "7920b502240f3e44105e37731c21292f42e5613a0d0a467f0cc557592f849c65"
+}

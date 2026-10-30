@@ -1,0 +1,137 @@
+{
+  "kind": "m1_challenge_bundle",
+  "createdAt": "2026-04-25T18:15:07.129Z",
+  "selectedPathId": "roll",
+  "selectedBucketPct": null,
+  "sourceHashes": {
+    "cet": "b23c5adbed6e2728171a2568c93af385704532c2074c8320e291ab22e3a073c4",
+    "oracle": "eefe35ad4ed7fb96100b655b575607cdf2e133335c5f62ae620bae3f16376cac",
+    "fundingFinal": "b5714625e543f691c479cf6515038b5256f725705391dc371609354d00eaec67"
+  },
+  "binding": {
+    "fundingOutpoint": {
+      "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "vout": 0,
+      "valueLtc": "0.00162",
+      "valueSats": "162000"
+    },
+    "fundingTxidFinalized": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+    "maturityHeight": 4685058,
+    "refundLocktime": 4685346,
+    "dustCarrySats": "0"
+  },
+  "selectedPath": {
+    "pathId": "roll",
+    "winnerRole": "residual",
+    "winnerAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+    "refundRole": "residual",
+    "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+    "feeRole": "operator",
+    "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+    "dustRole": "alice",
+    "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+    "locktime": 4685346,
+    "rawTxHex": "0200000001feb24e0a5533ee084e7b7db0f92295830e39f4a749983f7cfaf6e4ad2e99db2e0000000000feffffff01d078020000000000160014dc46d232e024e4e304dd7eb65d2a00d639a9066c227e4700",
+    "txid": "5ca3395ceb0e80fa0b612fd7716ebbcd9027c428fd8c357f374fffc568fe61f2",
+    "bucketCapBps": null,
+    "realizedPnlBps": null,
+    "effectivePnlBps": null,
+    "feeBps": null,
+    "actualPayoutSats": null,
+    "payoutSats": null,
+    "feeSats": null,
+    "residualSats": "153900",
+    "timeoutRemainderSats": "8100",
+    "dustCarrySats": "0",
+    "rolloverCollateralSats": "153900",
+    "defaultOnExpiry": true,
+    "committedRouting": {
+      "winnerRole": "residual",
+      "winnerAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+      "refundRole": "residual",
+      "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+      "feeRole": "operator",
+      "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+      "dustRole": "alice",
+      "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn"
+    }
+  },
+  "oracleBinding": {
+    "eventId": "m1_oracle_event_1777140906856",
+    "quorumId": "quorum_1of1_placeholder",
+    "keyId": "oracle_key_tl_wallet_placeholder",
+    "oracleMapId": "e7ef072d70835cbd",
+    "fundingOutpoint": {
+      "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "vout": 0,
+      "valueLtc": "0.00162",
+      "valueSats": "162000"
+    },
+    "messagePayload": null,
+    "messageDigestHex": null,
+    "nonceCommitment": null,
+    "oracleSignaturePlaceholder": null,
+    "adaptorPointPlaceholder": null,
+    "adaptorSignaturePlaceholder": null
+  },
+  "deltaPublication": {
+    "kind": "m1_oracle_delta_publication",
+    "publicationId": "d2c8457b0d28385f27d0f828",
+    "oracleMapId": "e7ef072d70835cbd",
+    "eventId": "m1_oracle_event_1777140906856",
+    "quorumId": "quorum_1of1_placeholder",
+    "keyId": "oracle_key_tl_wallet_placeholder",
+    "pathId": "roll",
+    "deltaSats": "153900",
+    "bundleHash": "88421fbd5d8604ce46728409308f1004ab245937114519919111b0e98bd8a53f",
+    "payloadText": "m1delta|e7ef072d70835cbd|roll|153900|df42541467139ae7",
+    "payloadHex": "6d3164656c74617c653765663037326437303833356362647c726f6c6c7c3135333930307c64663432353431343637313339616537",
+    "opReturnScriptHex": "6a356d3164656c74617c653765663037326437303833356362647c726f6c6c7c3135333930307c64663432353431343637313339616537",
+    "adaptorMapping": {
+      "adaptorSignaturePlaceholder": null,
+      "adaptorPointPlaceholder": null,
+      "cetTxid": "5ca3395ceb0e80fa0b612fd7716ebbcd9027c428fd8c357f374fffc568fe61f2",
+      "messageDigestHex": null,
+      "selectedPathId": "roll"
+    },
+    "committedRouting": {
+      "winnerRole": "residual",
+      "winnerAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+      "refundRole": "residual",
+      "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+      "feeRole": "operator",
+      "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+      "dustRole": "alice",
+      "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn"
+    },
+    "rollTrigger": {
+      "kind": "event-driven-roll",
+      "canRoll": true,
+      "nextContractId": "df42541467139ae7",
+      "activation": "send"
+    },
+    "publicationHash": "aa00888e8e5c55baf37b02d882b09ff65c5cb035cee79a4b8dddb180289ff0e1"
+  },
+  "witnessBundlePlaceholders": {
+    "honestPath": {
+      "required": [
+        "commitmentPackage",
+        "selectedPathId",
+        "oracleSignature",
+        "cetPreimageOrSig"
+      ],
+      "note": "Populate these fields when challenge protocol witness format is finalized."
+    },
+    "challengedPath": {
+      "required": [
+        "conflictingSweepData",
+        "attestationDigest",
+        "oracleSignature",
+        "merkleMembershipProofs",
+        "capResidualChecks"
+      ],
+      "note": "Use this shape for arbitration redirect payload."
+    }
+  },
+  "bundleHash": "88421fbd5d8604ce46728409308f1004ab245937114519919111b0e98bd8a53f"
+}

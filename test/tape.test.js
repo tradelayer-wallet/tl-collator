@@ -37,6 +37,7 @@ test('TapeStore builds index and replays entries >= fromSeq', async () => {
     idxPath,
     idxStride: 2,
     replayBatch: 2,
+    maxReplayEntries: 1000,
     collatorId: 'c',
     collatorPrivKeyHex: '11'.repeat(32),
   });
@@ -44,7 +45,7 @@ test('TapeStore builds index and replays entries >= fromSeq', async () => {
   const got = [];
   const last = await t.replayFromSeq(3, (e) => got.push(e.seq));
   assert.deepEqual(got, [3, 4, 5]);
-  assert.ok(last >= 5);
+  assert.deepEqual(last, { fromSeq: 3, lastSeq: 5 });
   assert.equal(fs.existsSync(idxPath), true);
 });
 

@@ -1,0 +1,38 @@
+{
+  "rule": [
+    "1. The TCP peer is canonical: IPv4-mapped IPv6 becomes dotted IPv4, other IPv6 becomes RFC 5952 text. A peer that is not an IP literal is the empty string.",
+    "2. If the canonical peer is not a trusted hop, it is the client IP.",
+    "3. If X-Forwarded-For is absent, or blank after trimming, the client IP is the peer.",
+    "4. The value is split on ','. Each hop is trimmed of surrounding whitespace. A hop is valid only if it is a bare IP literal: no brackets, no zone identifier, no port, no other text. An empty hop is invalid. A valid hop is canonical as in rule 1.",
+    "5. If any hop is invalid, the client IP is the peer.",
+    "6. Hops are read right to left. The first hop that is not a trusted hop is the client IP.",
+    "7. If every hop is a trusted hop, the client IP is the peer."
+  ],
+  "cases": [
+    { "name": "single hop from a trusted proxy", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5", "expect": "203.0.113.5" },
+    { "name": "proxy chain, spaced", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5, 10.0.0.2", "expect": "203.0.113.5" },
+    { "name": "proxy chain, unspaced", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5,10.0.0.2", "expect": "203.0.113.5" },
+    { "name": "client-supplied leftmost hop is ignored", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "198.51.100.7, 203.0.113.5, 10.0.0.2", "expect": "203.0.113.5" },
+    { "name": "absent header", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": null, "expect": "10.0.0.1" },
+    { "name": "blank header", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "   ", "expect": "10.0.0.1" },
+    { "name": "untrusted peer ignores the header", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "198.51.100.9", "xff": "203.0.113.5", "expect": "198.51.100.9" },
+    { "name": "every hop is a trusted proxy", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "10.0.0.5, 10.0.0.2", "expect": "10.0.0.1" },
+    { "name": "empty hop in the middle", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5,,10.0.0.2", "expect": "10.0.0.1" },
+    { "name": "trailing comma", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5, 10.0.0.2,", "expect": "10.0.0.1" },
+    { "name": "leading comma", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": ",203.0.113.5", "expect": "10.0.0.1" },
+    { "name": "space-separated hops", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5 203.0.113.6", "expect": "10.0.0.1" },
+    { "name": "bracketed IPv6 hop", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "[2600:1f18::1]", "expect": "10.0.0.1" },
+    { "name": "zone-scoped IPv6 hop", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "2600:1f18::1%eth0", "expect": "10.0.0.1" },
+    { "name": "zone-scoped hop in a chain", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "fe80::1%eth0, 10.0.0.2", "expect": "10.0.0.1" },
+    { "name": "hop with a port", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5:443", "expect": "10.0.0.1" },
+    { "name": "hop with a trailing dot", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5.", "expect": "10.0.0.1" },
+    { "name": "leading-zero IPv4 hop", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "010.0.0.5, 10.0.0.2", "expect": "10.0.0.1" },
+    { "name": "non-address hop", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "unknown", "expect": "10.0.0.1" },
+    { "name": "IPv4-mapped hop in hex spelling", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "::FFFF:cb00:7105, 10.0.0.2", "expect": "203.0.113.5" },
+    { "name": "IPv4-mapped hop in dotted spelling", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "::ffff:203.0.113.5, 10.0.0.2", "expect": "203.0.113.5" },
+    { "name": "IPv6 client hop is lower-cased", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "2600:1F18::1, 10.0.0.2", "expect": "2600:1f18::1" },
+    { "name": "IPv6 trusted hop is skipped", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "10.0.0.1", "xff": "203.0.113.5, 2001:db8::7", "expect": "203.0.113.5" },
+    { "name": "IPv4-mapped peer is canonical", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "::ffff:10.0.0.1", "xff": "203.0.113.5", "expect": "203.0.113.5" },
+    { "name": "non-address peer is the empty string", "trusted": ["10.0.0.0/8", "2001:db8::/32"], "peer": "", "xff": "203.0.113.5", "expect": "" }
+  ]
+}

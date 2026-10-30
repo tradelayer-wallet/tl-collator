@@ -1,0 +1,538 @@
+{
+  "kind": "m1_pipeline",
+  "createdAt": "2026-04-25T18:15:08.799Z",
+  "status": "ok",
+  "options": {
+    "mode": "replay",
+    "selectedPath": null,
+    "selectedBucketPct": null,
+    "broadcastFunding": false,
+    "includeSettlementValidation": true,
+    "forceSettlementValidation": false
+  },
+  "steps": [
+    {
+      "id": "bootstrap",
+      "label": "Bootstrap funded epoch draft",
+      "script": "m1_dlc_bootstrap.js",
+      "status": "skipped",
+      "skipReason": "replay mode reuses latest draft artifact",
+      "exitCode": null,
+      "durationMs": null,
+      "stdoutLines": [],
+      "stderrLines": []
+    },
+    {
+      "id": "psbtCet",
+      "label": "Generate funding PSBT and CET skeletons",
+      "script": "m1_dlc_psbt_cet.js",
+      "status": "skipped",
+      "skipReason": "replay mode reuses latest funding PSBT and CET artifacts",
+      "exitCode": null,
+      "durationMs": null,
+      "stdoutLines": [],
+      "stderrLines": []
+    },
+    {
+      "id": "signFinalize",
+      "label": "Finalize funding transaction artifact",
+      "script": "m1_dlc_sign_finalize.js",
+      "status": "skipped",
+      "skipReason": "replay mode reuses latest finalized funding artifact",
+      "exitCode": null,
+      "durationMs": null,
+      "stdoutLines": [],
+      "stderrLines": []
+    },
+    {
+      "id": "rollForward",
+      "label": "Emit roll-forward handoff artifact",
+      "script": "m1_roll_forward.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 170,
+      "stdoutLines": [
+        "=== M1 Roll Forward ===",
+        "epochId=1",
+        "nextEpochId=2",
+        "dustCarrySats=0",
+        "rolloverCollateralSats=153900",
+        "artifactHash=f7bba0974648860789ada32be10f1eafb9cc6ea50ae963ca54058959b78b3495",
+        "artifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_roll_forward_latest.json"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "oracleWiring",
+      "label": "Generate oracle wiring artifact",
+      "script": "m1_oracle_wiring.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 204,
+      "stdoutLines": [
+        "=== M1 Oracle Wiring Placeholders ===",
+        "eventId=m1_oracle_event_1777140906856",
+        "targets=2",
+        "fundingOutpoint=2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe:0",
+        "artifactHash=a15699c2b371ad29c5f59b01c35fc88bb7bbda9be89ae5287965246bbc8ff57d",
+        "artifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_oracle_wiring_latest.json"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "selectBundle",
+      "label": "Select challenge bundle path",
+      "script": "m1_select_bucket_bundle.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 277,
+      "stdoutLines": [
+        "=== M1 CET Bundle Selection ===",
+        "path=roll",
+        "cetTxid=5ca3395ceb0e80fa0b612fd7716ebbcd9027c428fd8c357f374fffc568fe61f2",
+        "messageDigest=null",
+        "bundleHash=88421fbd5d8604ce46728409308f1004ab245937114519919111b0e98bd8a53f",
+        "artifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_bundle_latest.json",
+        "witnessRoute=roll",
+        "witnessArtifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_witness_latest.json"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "witnessSummary",
+      "label": "Render compact witness summary",
+      "script": "m1_challenge_witness_summary.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 221,
+      "stdoutLines": [
+        "  \"cetPreimageOrSig\": \"0200000001feb24e0a5533ee084e7b7db0f92295830e39f4a749983f7cfaf6e4ad2e99db2e0000000000feffffff01d078020000000000160014dc46d232e024e4e304dd7eb65d2a00d639a9066c227e4700\",",
+        "  \"routeBits\": {",
+        "    \"flat\": 0,",
+        "    \"pnl\": 0,",
+        "    \"settleLoss\": 0,",
+        "    \"settleGain\": 0,",
+        "    \"roll\": 1",
+        "  },",
+        "  \"committedRouting\": {",
+        "    \"winnerRole\": \"residual\",",
+        "    \"winnerAddress\": \"tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp\",",
+        "    \"refundRole\": \"residual\",",
+        "    \"refundAddress\": \"tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp\",",
+        "    \"feeRole\": \"operator\",",
+        "    \"feeAddress\": \"tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v\",",
+        "    \"dustRole\": \"alice\",",
+        "    \"dustAddress\": \"tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn\"",
+        "  },",
+        "  \"witnessArtifactPath\": \"C:\\\\projects\\\\UTXORef\\\\UTXO-Ref\\\\bitvm3\\\\utxo_referee\\\\artifacts\\\\m1_challenge_witness_latest.json\"",
+        "}"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "expiryRedemption",
+      "label": "Generate expiry redemption artifact",
+      "script": "m1_expiry_redemption.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 376,
+      "stdoutLines": [
+        "=== M1 Expiry Redemption ===",
+        "chainMode=rpc",
+        "epochId=1",
+        "depositedSats=162000",
+        "redeemedSats=153900",
+        "winnerSweepSats=153900",
+        "refundSats=8100",
+        "dustCarrySats=0",
+        "pnlGainSats=0",
+        "pnlLossSats=8100",
+        "netDeltaSats=-8100",
+        "artifactHash=d276eb914655826d2c9d4f0a8007e778b2f518c04d68be32b0c17cbd5835dd2b",
+        "artifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_expiry_redemption_latest.json"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "fastRoll",
+      "label": "Generate fast-roll handoff artifact",
+      "script": "m1_fast_roll.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 253,
+      "stdoutLines": [
+        "=== M1 Fast Roll ===",
+        "oracleMapId=e7ef072d70835cbd",
+        "publicationId=d2c8457b0d28385f27d0f828",
+        "nextContractId=df42541467139ae7",
+        "artifactHash=d6732e2fc6bfb6e5d2cb16aacfdc4c43e3ff993fe20525de10d505ed14a215e3",
+        "artifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_fast_roll_latest.json"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "settlementValidation",
+      "label": "Validate latest settlement artifacts",
+      "script": "m1_validate_latest_settlement.js",
+      "status": "skipped",
+      "skipReason": "skipped because timeout proof is stale relative to m1_expiry_redemption_latest.json",
+      "exitCode": null,
+      "durationMs": null,
+      "stdoutLines": [],
+      "stderrLines": []
+    },
+    {
+      "id": "parallelUtxoIndex",
+      "label": "Emit parallel UTXO artifact index",
+      "script": "m1_parallel_utxo_index.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 237,
+      "stdoutLines": [
+        "=== M1 Parallel UTXO Index ===",
+        "chainId=litecoin-testnet",
+        "transactions=5",
+        "semanticRefs=2",
+        "fundingTxid=2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+        "timeoutSpendTxid=68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062",
+        "artifactHash=9a711d63ba3d8f35359b0000877733d351faef1a1a5d477033ac672191112060",
+        "artifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_parallel_utxo_index_latest.json"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "proceduralSync",
+      "label": "Emit wallet-facing procedural sync summary",
+      "script": "m1_procedural_sync.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 248,
+      "stdoutLines": [
+        "=== M1 Procedural Sync ===",
+        "state=SETTLED",
+        "propertyId=380",
+        "holderAddress=tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+        "contractId=ltc-testnet-epoch-1-1777140673550",
+        "fundingTxid=2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+        "fundedAmountLtc=0.00153900",
+        "settlementRoute=roll",
+        "parallelUtxoTxs=5",
+        "artifactHash=7920b502240f3e44105e37731c21292f42e5613a0d0a467f0cc557592f849c65",
+        "artifactPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\bitvm_procedural_sync_latest.json"
+      ],
+      "stderrLines": []
+    },
+    {
+      "id": "bitvmSearchManifolds",
+      "label": "Emit BitVM search manifold experiments",
+      "script": "m1_bitvm_search_manifolds.js",
+      "status": "ok",
+      "skipReason": null,
+      "exitCode": 0,
+      "durationMs": 241,
+      "stdoutLines": [
+        "=== M1 BitVM Search Manifolds ===",
+        "statementHash=045028ff4ac49296e4fe93fcf39ec4d5e7af87d5208f3b41a0916c1487340866",
+        "transcriptVariants=7",
+        "identifierVariants=4",
+        "artifactHash=ba4b374cdffdf0d3c588c315b92a08fb55f78ca4c854191abbe4356ab977759b",
+        "jsonPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_bitvm_search_manifolds_latest.json",
+        "mdPath=C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_bitvm_search_manifolds_latest.md"
+      ],
+      "stderrLines": []
+    }
+  ],
+  "plannedSteps": [
+    {
+      "id": "bootstrap",
+      "label": "Bootstrap funded epoch draft",
+      "script": "m1_dlc_bootstrap.js",
+      "skipReason": "replay mode reuses latest draft artifact"
+    },
+    {
+      "id": "psbtCet",
+      "label": "Generate funding PSBT and CET skeletons",
+      "script": "m1_dlc_psbt_cet.js",
+      "skipReason": "replay mode reuses latest funding PSBT and CET artifacts"
+    },
+    {
+      "id": "signFinalize",
+      "label": "Finalize funding transaction artifact",
+      "script": "m1_dlc_sign_finalize.js",
+      "skipReason": "replay mode reuses latest finalized funding artifact"
+    },
+    {
+      "id": "rollForward",
+      "label": "Emit roll-forward handoff artifact",
+      "script": "m1_roll_forward.js",
+      "skipReason": null
+    },
+    {
+      "id": "oracleWiring",
+      "label": "Generate oracle wiring artifact",
+      "script": "m1_oracle_wiring.js",
+      "skipReason": null
+    },
+    {
+      "id": "selectBundle",
+      "label": "Select challenge bundle path",
+      "script": "m1_select_bucket_bundle.js",
+      "skipReason": null
+    },
+    {
+      "id": "witnessSummary",
+      "label": "Render compact witness summary",
+      "script": "m1_challenge_witness_summary.js",
+      "skipReason": null
+    },
+    {
+      "id": "expiryRedemption",
+      "label": "Generate expiry redemption artifact",
+      "script": "m1_expiry_redemption.js",
+      "skipReason": null
+    },
+    {
+      "id": "fastRoll",
+      "label": "Generate fast-roll handoff artifact",
+      "script": "m1_fast_roll.js",
+      "skipReason": null
+    },
+    {
+      "id": "settlementValidation",
+      "label": "Validate latest settlement artifacts",
+      "script": "m1_validate_latest_settlement.js",
+      "skipReason": "skipped because timeout proof is stale relative to m1_expiry_redemption_latest.json"
+    },
+    {
+      "id": "parallelUtxoIndex",
+      "label": "Emit parallel UTXO artifact index",
+      "script": "m1_parallel_utxo_index.js",
+      "skipReason": null
+    },
+    {
+      "id": "proceduralSync",
+      "label": "Emit wallet-facing procedural sync summary",
+      "script": "m1_procedural_sync.js",
+      "skipReason": null
+    },
+    {
+      "id": "bitvmSearchManifolds",
+      "label": "Emit BitVM search manifold experiments",
+      "script": "m1_bitvm_search_manifolds.js",
+      "skipReason": null
+    }
+  ],
+  "outputs": {
+    "witnessSummary": {
+      "route": "roll",
+      "requiresOracle": false,
+      "collateralSats": "162000",
+      "actualPayoutSats": "0",
+      "feeSats": "0",
+      "refundSats": "8100",
+      "rolloverCollateralSats": "153900",
+      "bucketCapBps": "0",
+      "realizedPnlBps": "0",
+      "effectivePnlBps": "0",
+      "feeBps": "0",
+      "oracleMessageDigestHex": null,
+      "oracleSignature": null,
+      "cetPreimageOrSig": "0200000001feb24e0a5533ee084e7b7db0f92295830e39f4a749983f7cfaf6e4ad2e99db2e0000000000feffffff01d078020000000000160014dc46d232e024e4e304dd7eb65d2a00d639a9066c227e4700",
+      "routeBits": {
+        "flat": 0,
+        "pnl": 0,
+        "settleLoss": 0,
+        "settleGain": 0,
+        "roll": 1
+      },
+      "committedRouting": {
+        "winnerRole": "residual",
+        "winnerAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+        "refundRole": "residual",
+        "refundAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+        "feeRole": "operator",
+        "feeAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+        "dustRole": "alice",
+        "dustAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn"
+      },
+      "witnessArtifactPath": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_witness_latest.json"
+    },
+    "proceduralSync": {
+      "kind": "bitvm_procedural_sync",
+      "createdAt": "2026-04-25T18:15:08.492Z",
+      "propertyId": 380,
+      "holderAddress": "tltc1qyslh3amjs935nmtexvxh5dzyfg7yczmf56n8vn",
+      "operatorAddress": "tltc1qwtgx0c9f92ww8gtat82zpsgu4gttwx37xzsf2v",
+      "oracleAddress": "tltc1qmqh6u982ndpp69e43ey2p4agx09mwwy53qf6qg",
+      "residualAddress": "tltc1qm3rdyvhqynjwxpxa06m962sq6cu6jpnvncy3rp",
+      "templateId": "dlc-receipt-ltc-testnet-v1",
+      "templateHash": "60e19d0c4f34a09a690e679230bf41a63252306e0e06a09e1b090efbcbb7b499",
+      "contractId": "ltc-testnet-epoch-1-1777140673550",
+      "fundingTxid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "fundedAmountLtc": 0.001539,
+      "state": "SETTLED",
+      "dbRoot": null,
+      "chain": {
+        "network": "test",
+        "blockHeight": 4684050,
+        "mode": "rpc"
+      },
+      "funding": {
+        "collateralSats": "162000",
+        "fundedAmountSats": "153900",
+        "fundingOutpoint": {
+          "txid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+          "vout": 0,
+          "valueSats": "162000"
+        }
+      },
+      "settlement": {
+        "route": "roll",
+        "settlementKind": "timeout-refund",
+        "redeemedSats": "153900",
+        "winnerSweepSats": "153900",
+        "refundSats": "8100",
+        "dustCarrySats": "0"
+      },
+      "parallelUtxoIndex": {
+        "chainId": "litecoin-testnet",
+        "fundingTxid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+        "timeoutSpendTxid": "68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062",
+        "transactionCount": 5,
+        "semanticRefCount": 2,
+        "artifactHash": "9a711d63ba3d8f35359b0000877733d351faef1a1a5d477033ac672191112060"
+      },
+      "sourceArtifacts": {
+        "draft": {
+          "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_dlc_draft_latest.json",
+          "kind": "m1_dlc_draft",
+          "hash": "88670e221bd7f07f9f4a2a5ba8c8b1bfa74557156c329f6a5ec2016988579c13"
+        },
+        "fundingPsbt": {
+          "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_psbt_latest.json",
+          "kind": "m1_funding_psbt",
+          "hash": "e52227c88b8f6e0b43983fa8e332f815df813728aab109876b5d3e2d2003c316"
+        },
+        "fundingFinal": {
+          "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_finalized_latest.json",
+          "kind": "m1_funding_finalized",
+          "hash": "0284c3aa0a45a84fd4fe5fb0bc9cfc96fd74e7628bacc4184a8ec42e410f412f"
+        },
+        "challengeBundle": {
+          "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_bundle_latest.json",
+          "kind": "m1_challenge_bundle",
+          "hash": "ff8e8cbb81c6d89b2b762fa8fac96c974f66dff0396c4830b0eb65f4810f760c"
+        },
+        "challengeWitness": {
+          "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_witness_latest.json",
+          "kind": "m1_challenge_witness",
+          "hash": "9c3f5bb678fcfcecc1da7d9788b0b1325bf7a0de8939d82395484880b0259450"
+        },
+        "expiryRedemption": {
+          "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_expiry_redemption_latest.json",
+          "kind": "m1_expiry_redemption",
+          "hash": "45b34ddd6be93d28193c0d391d5fbb8f2a34364dde55722034fbfb9bd08e03fa"
+        },
+        "parallelUtxoIndex": {
+          "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_parallel_utxo_index_latest.json",
+          "kind": "m1_parallel_utxo_index",
+          "hash": "1579f5e711363fceaaa66a208d7c7c412815e3b42fbc1c104336a9fe90c0a079"
+        }
+      },
+      "artifactHash": "7920b502240f3e44105e37731c21292f42e5613a0d0a467f0cc557592f849c65"
+    },
+    "parallelUtxoIndex": {
+      "chainId": "litecoin-testnet",
+      "transactionCount": 5,
+      "fundingTxid": "2edb992eade4f6fa7c3f9849a7f4390e839522f9b07d7b4e08ee33550a4eb2fe",
+      "timeoutSpendTxid": "68b228d210374d9064d5c1173cdfebc0d7d5b408a09cf2395ddcd25b2f751062",
+      "artifactHash": "9a711d63ba3d8f35359b0000877733d351faef1a1a5d477033ac672191112060"
+    },
+    "settlementValidation": null,
+    "bitvmSearchManifolds": {
+      "statementHash": "045028ff4ac49296e4fe93fcf39ec4d5e7af87d5208f3b41a0916c1487340866",
+      "transcriptVariantCount": 7,
+      "identifierVariantCount": 4,
+      "recommendedTranscriptVariant": "fd_repeat_aabb",
+      "recommendedAnchorVariant": "anchor_retry_window",
+      "artifactHash": "ba4b374cdffdf0d3c588c315b92a08fb55f78ca4c854191abbe4356ab977759b"
+    }
+  },
+  "artifacts": {
+    "draft": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_dlc_draft_latest.json",
+      "kind": "m1_dlc_draft",
+      "hash": "88670e221bd7f07f9f4a2a5ba8c8b1bfa74557156c329f6a5ec2016988579c13"
+    },
+    "fundingPsbt": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_psbt_latest.json",
+      "kind": "m1_funding_psbt",
+      "hash": "e52227c88b8f6e0b43983fa8e332f815df813728aab109876b5d3e2d2003c316"
+    },
+    "fundingFinal": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_funding_finalized_latest.json",
+      "kind": "m1_funding_finalized",
+      "hash": "0284c3aa0a45a84fd4fe5fb0bc9cfc96fd74e7628bacc4184a8ec42e410f412f"
+    },
+    "rollForward": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_roll_forward_latest.json",
+      "kind": "m1_roll_forward",
+      "hash": "ff272335e6a8ebc67cbbf9b4cc6f82a2a132aa305ece711a40626f2d78738486"
+    },
+    "oracleWiring": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_oracle_wiring_latest.json",
+      "kind": "m1_oracle_wiring",
+      "hash": "8660789005913329587e627b6fdfddf17219d95ed443b55f5ef057c1c60a164a"
+    },
+    "challengeBundle": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_bundle_latest.json",
+      "kind": "m1_challenge_bundle",
+      "hash": "ff8e8cbb81c6d89b2b762fa8fac96c974f66dff0396c4830b0eb65f4810f760c"
+    },
+    "challengeWitness": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_challenge_witness_latest.json",
+      "kind": "m1_challenge_witness",
+      "hash": "9c3f5bb678fcfcecc1da7d9788b0b1325bf7a0de8939d82395484880b0259450"
+    },
+    "expiryRedemption": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_expiry_redemption_latest.json",
+      "kind": "m1_expiry_redemption",
+      "hash": "45b34ddd6be93d28193c0d391d5fbb8f2a34364dde55722034fbfb9bd08e03fa"
+    },
+    "fastRoll": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_fast_roll_latest.json",
+      "kind": "m1_fast_roll",
+      "hash": "6d149a16e8d121914db5956ba0b8bbfafdfba8f761e818c07725daade4e94ec7"
+    },
+    "settlementValidation": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_settlement_validation_latest.json",
+      "kind": "m1_settlement_validation",
+      "hash": "e2a92cc93001926a83c7cf7153c092599b68800f7d3f008d3304540ece4e4d2b"
+    },
+    "proceduralSync": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\bitvm_procedural_sync_latest.json",
+      "kind": "bitvm_procedural_sync",
+      "hash": "24218a48fa20315c75cf0f6704208f7e2bb263161fff3e4424deed994b100f85"
+    },
+    "parallelUtxoIndex": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_parallel_utxo_index_latest.json",
+      "kind": "m1_parallel_utxo_index",
+      "hash": "1579f5e711363fceaaa66a208d7c7c412815e3b42fbc1c104336a9fe90c0a079"
+    },
+    "bitvmSearchManifolds": {
+      "path": "C:\\projects\\UTXORef\\UTXO-Ref\\bitvm3\\utxo_referee\\artifacts\\m1_bitvm_search_manifolds_latest.json",
+      "kind": "m1_bitvm_search_manifolds",
+      "hash": "b2300cfdc0393753588bfa7506c391abfebb440ee9e7097e56a6d9c01b11ad40"
+    }
+  },
+  "failure": null,
+  "artifactHash": "8ba1258058f56bce588b6882832804e5d40ac4e8aa4000c50d7b16d79fc3d1c5"
+}
