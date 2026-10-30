@@ -1,0 +1,5 @@
+name = "tl_collator_wire"
+defaultTargets = ["TlCollatorWire"]
+
+[[lean_lib]]
+name = "TlCollatorWire"
