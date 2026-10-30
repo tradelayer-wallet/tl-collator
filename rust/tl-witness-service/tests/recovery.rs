@@ -110,8 +110,8 @@ use std::{
 };
 use tl_collator_wire::{canonical_json, sha256_hex};
 use tl_witness_service::recovery::{
-    export_history, verify_full_recovery, FreshReceipt, RecoveryError, RecoveryExport,
-    RecoveryLimits, RecoveryPolicy, REQUEST_DOMAIN,
+    export_history, verify_full_recovery, FreshReceipt, PagedRecovery, RecoveryError,
+    RecoveryExport, RecoveryLimits, RecoveryPolicy, RecoverySessionLimits, REQUEST_DOMAIN,
 };
 fn limits() -> RecoveryLimits {
     RecoveryLimits {
@@ -877,4 +877,463 @@ fn lost_ack_recovery_drill_preserves_failed_tape_and_resumes_only_a_new_verified
         fs::read(failed.path().join("orders.checkpoint")).unwrap(),
         old_anchor
     );
+}
+
+fn session_limits() -> RecoverySessionLimits {
+    RecoverySessionLimits {
+        max_pages: 10,
+        max_total_export_bytes: 2_097_152,
+        timeout: Duration::from_secs(60),
+    }
+}
+fn page(t: &Tmp, cp: &Checkpoint, start: u64, count: u64, nonce: u64) -> RecoveryExport {
+    let mut request = signed_request(cp, start, count);
+    request["challenge"] = json!(format!("{nonce:064x}"));
+    resign(&mut request, "sigOperator", &[7; 32]);
+    export_history(
+        t.path(),
+        &config("LTCTEST"),
+        &[5; 32],
+        &policy(),
+        &request.to_string(),
+    )
+    .unwrap()
+}
+fn receipt_for(raw: &str) -> FreshReceipt<'_> {
+    FreshReceipt {
+        raw,
+        challenge: "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        requested_at: Instant::now(),
+        max_age: Duration::from_secs(10),
+    }
+}
+#[test]
+fn paged_recovery_exceeds_one_response_without_relaxing_response_caps() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let cp = populated(&t);
+    let before = evidence(&t);
+    let pages: Vec<_> = (1..=3).map(|n| page(&t, &cp, n, 1, n)).collect();
+    let maximum = pages
+        .iter()
+        .map(|p| p.manifest.len() + 1 + p.ndjson.len())
+        .max()
+        .unwrap();
+    let total = pages
+        .iter()
+        .map(|p| (p.manifest.len() + 1 + p.ndjson.len()) as u64)
+        .sum();
+    let caps = RecoveryLimits {
+        max_records: 1,
+        max_export_bytes: maximum,
+        ..limits()
+    };
+    let full = export(&t, &cp, 1, 3);
+    assert!(full.manifest.len() + 1 + full.ndjson.len() > maximum);
+    let configuration = config("LTCTEST");
+    let mut verifier = PagedRecovery::new(
+        &configuration,
+        &pubkey(&[5; 32]),
+        "recovery-operator",
+        cp.clone(),
+        caps,
+        RecoverySessionLimits {
+            max_pages: 3,
+            max_total_export_bytes: total,
+            ..session_limits()
+        },
+    )
+    .unwrap();
+    for (i, p) in pages.iter().enumerate() {
+        verifier.accept_page(p, &format!("{:064x}", i + 1)).unwrap();
+    }
+    let raw = receipt(&t);
+    assert_eq!(verifier.finish(receipt_for(&raw)).unwrap(), cp);
+    assert_eq!(evidence(&t), before);
+}
+#[test]
+fn paged_recovery_refuses_missing_reordered_overlapping_or_replayed_pages() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let cp = populated(&t);
+    let configuration = config("LTCTEST");
+    let first = page(&t, &cp, 1, 1, 1);
+    let second = page(&t, &cp, 2, 1, 2);
+    let third = page(&t, &cp, 3, 1, 3);
+    let overlap = page(&t, &cp, 1, 1, 4);
+    let reused = page(&t, &cp, 2, 1, 1);
+    for sequence in [
+        vec![(&second, 2)],
+        vec![(&first, 1), (&third, 3)],
+        vec![(&first, 1), (&overlap, 4)],
+        vec![(&first, 1), (&reused, 1)],
+    ] {
+        let mut verifier = PagedRecovery::new(
+            &configuration,
+            &pubkey(&[5; 32]),
+            "recovery-operator",
+            cp.clone(),
+            limits(),
+            session_limits(),
+        )
+        .unwrap();
+        let mut refused = false;
+        for (p, n) in sequence {
+            if verifier.accept_page(p, &format!("{n:064x}")).is_err() {
+                refused = true;
+                break;
+            }
+        }
+        assert!(refused);
+        assert!(verifier.is_blocked());
+        assert!(verifier
+            .accept_page(&second, &format!("{:064x}", 2))
+            .is_err());
+        assert!(verifier.finish(receipt_for(&receipt(&t))).is_err());
+    }
+    for count in 0..=2 {
+        let mut verifier = PagedRecovery::new(
+            &configuration,
+            &pubkey(&[5; 32]),
+            "recovery-operator",
+            cp.clone(),
+            limits(),
+            session_limits(),
+        )
+        .unwrap();
+        for (p, n) in [(&first, 1), (&second, 2)].iter().take(count) {
+            verifier.accept_page(p, &format!("{n:064x}")).unwrap();
+        }
+        assert_eq!(
+            verifier.finish(receipt_for(&receipt(&t))),
+            Err(RecoveryError::Checkpoint)
+        );
+    }
+}
+#[test]
+fn partial_page_replay_failure_permanently_blocks_finalization() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let cp = populated(&t);
+    let configuration = config("LTCTEST");
+    let mut bad = page(&t, &cp, 2, 2, 2);
+    let mut lines: Vec<_> = bad.ndjson.lines().map(str::to_owned).collect();
+    lines[1] = lines[1].replace("72.50", "72.51");
+    bad.ndjson = lines.join("\n") + "\n";
+    let mut manifest: Value = serde_json::from_str(&bad.manifest).unwrap();
+    manifest["digest"] = json!(sha256_hex(&bad.ndjson));
+    resign(&mut manifest, "sigWitness", &[5; 32]);
+    bad.manifest = manifest.to_string();
+    let mut verifier = PagedRecovery::new(
+        &configuration,
+        &pubkey(&[5; 32]),
+        "recovery-operator",
+        cp.clone(),
+        limits(),
+        session_limits(),
+    )
+    .unwrap();
+    verifier
+        .accept_page(&page(&t, &cp, 1, 1, 1), &format!("{:064x}", 1))
+        .unwrap();
+    assert_eq!(
+        verifier.accept_page(&bad, &format!("{:064x}", 2)),
+        Err(RecoveryError::Corrupt)
+    );
+    assert!(verifier.is_blocked());
+    assert!(verifier
+        .accept_page(&page(&t, &cp, 2, 2, 3), &format!("{:064x}", 3))
+        .is_err());
+    assert!(verifier.finish(receipt_for(&receipt(&t))).is_err());
+}
+#[test]
+fn paged_recovery_binds_one_checkpoint_and_requires_a_new_final_receipt() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let cp = populated(&t);
+    let configuration = config("LTCTEST");
+    let first = page(&t, &cp, 1, 1, 1);
+    let rest = page(&t, &cp, 2, 2, 2);
+    let make = || {
+        PagedRecovery::new(
+            &configuration,
+            &pubkey(&[5; 32]),
+            "recovery-operator",
+            cp.clone(),
+            limits(),
+            session_limits(),
+        )
+        .unwrap()
+    };
+    let mut verifier = make();
+    verifier
+        .accept_page(&first, &format!("{:064x}", 1))
+        .unwrap();
+    verifier.accept_page(&rest, &format!("{:064x}", 2)).unwrap();
+    let nonce = format!("{:064x}", 1);
+    let raw = open(&t).attest_latest(&nonce).unwrap();
+    assert_eq!(
+        verifier.finish(FreshReceipt {
+            raw: &raw,
+            challenge: &nonce,
+            requested_at: Instant::now(),
+            max_age: Duration::from_secs(10)
+        }),
+        Err(RecoveryError::Freshness)
+    );
+    let mut old = make();
+    old.accept_page(&first, &format!("{:064x}", 1)).unwrap();
+    old.accept_page(&rest, &format!("{:064x}", 2)).unwrap();
+    let mut service = open(&t);
+    let advanced = service
+        .compare_and_swap(&cp, &entry(4, &cp.last_hash, order(4)))
+        .unwrap();
+    drop(service);
+    assert_eq!(
+        old.finish(receipt_for(&receipt(&t))),
+        Err(RecoveryError::Checkpoint)
+    );
+    let mut mixed = make();
+    mixed.accept_page(&first, &format!("{:064x}", 1)).unwrap();
+    assert_eq!(
+        mixed.accept_page(&page(&t, &advanced, 2, 3, 3), &format!("{:064x}", 3)),
+        Err(RecoveryError::Checkpoint)
+    );
+    assert!(mixed.is_blocked());
+}
+#[test]
+fn paged_recovery_bounds_aggregate_bytes_pages_records_and_elapsed_time() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let cp = populated(&t);
+    let configuration = config("LTCTEST");
+    let pages: Vec<_> = (1..=3).map(|n| page(&t, &cp, n, 1, n)).collect();
+    let total: u64 = pages
+        .iter()
+        .map(|p| (p.manifest.len() + 1 + p.ndjson.len()) as u64)
+        .sum();
+    for caps in [
+        RecoverySessionLimits {
+            max_pages: 2,
+            ..session_limits()
+        },
+        RecoverySessionLimits {
+            max_total_export_bytes: total - 1,
+            ..session_limits()
+        },
+    ] {
+        let mut verifier = PagedRecovery::new(
+            &configuration,
+            &pubkey(&[5; 32]),
+            "recovery-operator",
+            cp.clone(),
+            limits(),
+            caps,
+        )
+        .unwrap();
+        for (i, p) in pages.iter().take(2).enumerate() {
+            verifier.accept_page(p, &format!("{:064x}", i + 1)).unwrap();
+        }
+        assert_eq!(
+            verifier.accept_page(&pages[2], &format!("{:064x}", 3)),
+            Err(RecoveryError::Limit)
+        );
+        assert!(verifier.is_blocked());
+    }
+    let mut timed = PagedRecovery::new(
+        &configuration,
+        &pubkey(&[5; 32]),
+        "recovery-operator",
+        cp.clone(),
+        limits(),
+        RecoverySessionLimits {
+            timeout: Duration::from_nanos(1),
+            ..session_limits()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        timed.accept_page(&pages[0], &format!("{:064x}", 1)),
+        Err(RecoveryError::Deadline)
+    );
+    let mut record = PagedRecovery::new(
+        &configuration,
+        &pubkey(&[5; 32]),
+        "recovery-operator",
+        cp,
+        RecoveryLimits {
+            max_record_bytes: 32,
+            ..limits()
+        },
+        session_limits(),
+    )
+    .unwrap();
+    assert_eq!(
+        record.accept_page(&pages[0], &format!("{:064x}", 1)),
+        Err(RecoveryError::Limit)
+    );
+    for caps in [
+        RecoverySessionLimits {
+            max_pages: 10_001,
+            ..session_limits()
+        },
+        RecoverySessionLimits {
+            max_total_export_bytes: 1_073_741_825,
+            ..session_limits()
+        },
+        RecoverySessionLimits {
+            timeout: Duration::from_secs(86_401),
+            ..session_limits()
+        },
+    ] {
+        assert!(caps.validate().is_err());
+    }
+}
+
+#[test]
+fn complete_history_larger_than_ten_thousand_records_recovers_in_bounded_pages() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let configuration = Config {
+        max_entries: 20_000,
+        ..config("LTCTEST")
+    };
+    drop(
+        WitnessService::open(
+            t.path(),
+            Config {
+                max_entries: 20_000,
+                ..config("LTCTEST")
+            },
+            &[5; 32],
+        )
+        .unwrap(),
+    );
+    let mut tape = String::new();
+    let mut final_hash = String::new();
+    for n in 1..=10_001 {
+        let line = entry(n, &final_hash, order(n));
+        let value: Value = serde_json::from_str(&line).unwrap();
+        final_hash = value["entryHash"].as_str().unwrap().into();
+        tape.push_str(&line);
+        tape.push('\n');
+    }
+    fs::write(t.tape(), tape).unwrap();
+    let target = Checkpoint {
+        last_seq: 10_001,
+        last_hash: final_hash,
+        seen_orders: 10_001,
+    };
+    fs::write(t.path().join("witness.checkpoint"),json!({"version":1,"seq":target.last_seq,"hash":target.last_hash,"orders":target.seen_orders}).to_string()).unwrap();
+    let caps = RecoveryLimits {
+        max_records: 10_000,
+        max_export_bytes: 16 * 1024 * 1024,
+        max_scan_bytes: 32 * 1024 * 1024,
+        timeout: Duration::from_secs(60),
+        ..limits()
+    };
+    let policy = RecoveryPolicy::new("recovery-operator", &pubkey(&[7; 32]), caps.clone()).unwrap();
+    assert!(matches!(
+        export_history(
+            t.path(),
+            &configuration,
+            &[5; 32],
+            &policy,
+            &signed_request(&target, 1, 10_001).to_string()
+        ),
+        Err(RecoveryError::Limit)
+    ));
+    let mut verifier = PagedRecovery::new(
+        &configuration,
+        &pubkey(&[5; 32]),
+        "recovery-operator",
+        target.clone(),
+        caps,
+        RecoverySessionLimits {
+            max_pages: 2,
+            max_total_export_bytes: 32 * 1024 * 1024,
+            timeout: Duration::from_secs(120),
+        },
+    )
+    .unwrap();
+    for (start, count, nonce) in [(1, 5000, 1), (5001, 5001, 2)] {
+        let mut request = signed_request(&target, start, count);
+        request["challenge"] = json!(format!("{nonce:064x}"));
+        resign(&mut request, "sigOperator", &[7; 32]);
+        let bundle = export_history(
+            t.path(),
+            &configuration,
+            &[5; 32],
+            &policy,
+            &request.to_string(),
+        )
+        .unwrap();
+        verifier
+            .accept_page(&bundle, &format!("{nonce:064x}"))
+            .unwrap();
+    }
+    let started = Instant::now();
+    let raw = WitnessService::open(
+        t.path(),
+        Config {
+            max_entries: 20_000,
+            ..config("LTCTEST")
+        },
+        &[5; 32],
+    )
+    .unwrap()
+    .attest_latest(&"cd".repeat(32))
+    .unwrap();
+    assert_eq!(
+        verifier
+            .finish(FreshReceipt {
+                raw: &raw,
+                challenge: &"cd".repeat(32),
+                requested_at: started,
+                max_age: Duration::from_secs(30)
+            })
+            .unwrap(),
+        target
+    );
+}
+
+#[test]
+fn paged_replay_keeps_order_ownership_across_page_boundaries() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let mut service = open(&t);
+    let original = order(1);
+    let target = original["orderId"].as_str().unwrap().to_owned();
+    let one = service
+        .compare_and_swap(&service.checkpoint(), &entry(1, "", original))
+        .unwrap();
+    let mut cancel = order(2);
+    cancel["kind"] = json!("CANCEL");
+    cancel["cancelsOrderId"] = json!(target);
+    cancel.as_object_mut().unwrap().remove("orderId");
+    cancel.as_object_mut().unwrap().remove("sigTrader");
+    let digest = order_id(&cancel).unwrap();
+    cancel["orderId"] = json!(digest);
+    cancel["sigTrader"] = json!(sign(&digest, &[1; 32]));
+    let cp = service
+        .compare_and_swap(&one, &entry(2, &one.last_hash, cancel))
+        .unwrap();
+    drop(service);
+    let configuration = config("LTCTEST");
+    let mut verifier = PagedRecovery::new(
+        &configuration,
+        &pubkey(&[5; 32]),
+        "recovery-operator",
+        cp.clone(),
+        limits(),
+        session_limits(),
+    )
+    .unwrap();
+    verifier
+        .accept_page(&page(&t, &cp, 1, 1, 1), &format!("{:064x}", 1))
+        .unwrap();
+    verifier
+        .accept_page(&page(&t, &cp, 2, 1, 2), &format!("{:064x}", 2))
+        .unwrap();
+    assert_eq!(verifier.finish(receipt_for(&receipt(&t))).unwrap(), cp);
 }

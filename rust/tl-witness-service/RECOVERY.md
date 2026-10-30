@@ -157,8 +157,9 @@ transport captures as evidence, never append them to a tape.
    as restricted, immutable copies. Do not open the damaged evidence with a
    repair-capable tape constructor.
 2. Independently authenticate witness identity/scope. Obtain the latest head,
-   authorize the exact full range with a new random challenge, and export to a
-   new restricted artifact. Do not overwrite evidence or existing tape paths.
+   authorize exact bounded ranges, each with a new random challenge, and export
+   to new restricted artifacts. Every page must name the same committed head.
+   Do not overwrite evidence or existing tape paths.
 3. After export, query independent `latest` again using a **different new random
    challenge**. Record `Instant::now()` before starting that query and pass the
    raw reply, challenge and request start to `FreshReceipt`. The challenge and
@@ -166,15 +167,14 @@ transport captures as evidence, never append them to a tape.
    or supplied by the remote party. `max_age` must be <=30 seconds and cover the
    entire query plus verification. Wall-clock timestamps or file modification
    dates do not establish freshness.
-4. Call `verify_full_recovery` with independently pinned configuration, witness
+4. Call `verify_full_recovery` for a single complete response, or use
+   `PagedRecovery` below, with independently pinned configuration, witness
    key, expected operator ID and the original export challenge. It checks the
    manifest, exact bytes and full trader/collator signature replay, then requires
    equality with the fresh independent receipt. A newer remote head requires a
    newly authorized export; stale, divergent or incomplete history refuses.
-   The verifier writes nothing. Partial exports are diagnostic artifacts; this
-   version accepts only a single complete genesis-to-checkpoint bundle within
-   its caps as a restore candidate. Multi-bundle assembly and histories beyond
-   those caps require a separately reviewed extension.
+   The verifier writes nothing. No individual partial page is authoritative;
+   only complete genesis-to-checkpoint replay can become a restore candidate.
 5. Obtain explicit human authorization for the verified checkpoint and a **new**
    destination directory. Only then may an offline operator tool import the
    verified NDJSON through `DurableTape`'s existing `ExplicitVerifiedImport`.
@@ -182,6 +182,55 @@ transport captures as evidence, never append them to a tape.
 6. Reopen the restored store through witness-gated startup using another fresh
    receipt, compare state, and retain the old evidence. Runtime enablement and
    production cutover require their own review and authorization.
+
+## Paged offline verification
+
+`PagedRecovery` accepts a complete ordered sequence of bounded v1 export
+responses. The wire schema and operator authorization are unchanged. Initialize
+it with independently pinned configuration/key/operator identity, one target
+checkpoint obtained through authenticated latest, per-page `RecoveryLimits`,
+and aggregate `RecoverySessionLimits`. Then call `accept_page` for each response
+with the exact challenge from that page's independently authorized request.
+
+The verifier retains one replay index across pages, including ownership needed
+for later CANCEL/REPLACE entries. Each manifest must bind the same target and
+scope, start at the next sequence, and match the preceding page's verified hash.
+It checks exact count, bytes, digest and every signed entry. Missing, overlapping,
+reordered, differently scoped or mixed-checkpoint pages refuse. Export challenges
+cannot repeat, and the final fresh receipt must use another challenge.
+
+Per-page caps remain unchanged. Aggregate limits cap page count at 10,000,
+total transferred bytes (including all manifests/LF) at 1 GiB and session time
+at 24 hours; operators should choose smaller workload-specific limits. Total
+records remain bounded by `Config.max_entries` (at most 1,000,000). A single page
+is never allowed to bypass the original 10,000-record/64-MiB/60-second bounds.
+The verifier keeps its replay index and accepted challenges, without retaining
+all page bodies. Download/staging tools must apply their own file/disk quotas.
+
+Any failed page permanently blocks that verifier, including a failure after
+some entries in that page were processed. It exposes no partial checkpoint and
+cannot be reset; explicitly restart verification from preserved artifacts.
+`finish` consumes the verifier and returns a checkpoint only after every entry
+from genesis to the exact target has replayed and a fresh independent receipt
+matches. A missing final page or newer witness head refuses. Query the final
+receipt after page replay so a long recovery does not consume receipt freshness.
+
+```text
+verifier = PagedRecovery::new(pinned_config, witness_key, operator_id,
+                            target_checkpoint, page_limits, session_limits)
+for each exact authorized range, in order:
+    verifier.accept_page(response, expected_request_challenge)
+query independent latest with a different new CSPRNG challenge
+approved_candidate = verifier.finish(FreshReceipt(raw, challenge,
+                                                 request_start, max_age))
+```
+
+Preserve immutable restricted page artifacts and their order. After successful
+final verification and explicit human approval, an offline operator tool may
+concatenate their NDJSON records into a new destination, import through the
+existing verified primitive, and pass witness-gated startup. This API supplies
+no automated importer or in-place repair. The existing one-response helper now
+uses the same replay/finalization checks with a one-page aggregate limit.
 
 ## Verification and remaining operational gates
 
@@ -203,6 +252,13 @@ watchdog, SIGKILL observed during the locked snapshot, full replay and fresh
 receipt refusal. SSH tests cover inherited stdout/stdin descriptors and process
 group cleanup. CI checks committed formatting before tests without rewriting
 sources or dumping source encodings.
+
+Paged tests additionally cover exact aggregate caps, gaps/overlaps/reordering,
+mixed checkpoints, challenge reuse, missing completion, poisoning after partial
+page failure, and ownership across page boundaries. A 10,001-record signed
+history exercises recovery above the original single-response record limit.
+The real encrypted OpenSSH drill also recovers through separately authorized
+pages before explicitly importing into a new store.
 
 The lost-acknowledgment recovery drill commits remotely, loses the reply,
 confirms the old local store refuses startup, exports and independently verifies

@@ -20,6 +20,9 @@ pub const REQUEST_DOMAIN: &str = "TradeLayer/collator/recovery-request/v1";
 pub const MANIFEST_DOMAIN: &str = "TradeLayer/collator/recovery-manifest/v1";
 pub const MAX_METADATA_BYTES: usize = 8192;
 
+mod paged;
+pub use paged::{PagedRecovery, RecoverySessionLimits};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecoveryError {
     Invalid,
@@ -453,97 +456,24 @@ pub fn verify_full_recovery(
 ) -> Result<Checkpoint> {
     limits.validate()?;
     config.validate().map_err(|_| RecoveryError::Invalid)?;
-    let end = Instant::now()
-        .checked_add(limits.timeout)
-        .ok_or(RecoveryError::Limit)?;
-    if fresh.max_age.is_zero()
-        || fresh.max_age > Duration::from_secs(30)
-        || !valid_challenge(export_challenge)
-        || fresh.challenge == export_challenge
-        || Instant::now()
-            .checked_duration_since(fresh.requested_at)
-            .is_none_or(|age| age > fresh.max_age)
-    {
+    paged::validate_freshness(&fresh)?;
+    if !valid_challenge(export_challenge) || fresh.challenge == export_challenge {
         return Err(RecoveryError::Freshness);
-    }
-    if bundle
-        .manifest
-        .len()
-        .saturating_add(1)
-        .saturating_add(bundle.ndjson.len())
-        > limits.max_export_bytes
-    {
-        return Err(RecoveryError::Limit);
     }
     let manifest = fields(&bundle.manifest, MANIFEST_FIELDS)?;
-    scope(&manifest, config)?;
-    if text(&manifest, "domain")? != MANIFEST_DOMAIN
-        || uint(&manifest, "v")? != 1
-        || text(&manifest, "operatorId")? != operator_id
-        || text(&manifest, "challenge")? != export_challenge
-        || text(&manifest, "witnessPubKey")? != witness_pubkey
-        || text(&manifest, "collatorPubKey")? != config.collator_pubkey
-    {
-        return Err(RecoveryError::Unauthorized);
-    }
-    verify_signature(&manifest, "sigWitness", &key(witness_pubkey)?)?;
-    let expected = checkpoint(&manifest)?;
-    if uint(&manifest, "startSeq")? != 1
-        || uint(&manifest, "count")? != expected.last_seq
-        || expected.last_seq > limits.max_records as u64
-        || !text(&manifest, "prevHash")?.is_empty()
-        || text(&manifest, "finalHash")? != expected.last_hash
-        || uint(&manifest, "bytes")? != bundle.ndjson.len() as u64
-        || text(&manifest, "digest")? != sha256_hex(&bundle.ndjson)
-        || !bundle.ndjson.ends_with('\n')
-        || bundle.ndjson.contains('\r')
-    {
-        return Err(RecoveryError::Corrupt);
-    }
-    let scope = WitnessScope::new(
-        &config.collator_id,
-        &config.network,
-        &config.stream,
-        config.epoch,
+    let target = checkpoint(&manifest)?;
+    let mut replay = PagedRecovery::new(
+        config,
         witness_pubkey,
-    )
-    .map_err(|_| RecoveryError::Invalid)?;
-    scope
-        .assert_collator_identity(&config.collator_id, &config.collator_pubkey)
-        .map_err(|_| RecoveryError::Invalid)?;
-    let receipt = scope
-        .verify_receipt(fresh.raw, fresh.challenge)
-        .map_err(|_| RecoveryError::Freshness)?;
-    if receipt.seq() != expected.last_seq
-        || receipt.head_hash() != expected.last_hash
-        || receipt.seen_orders() != expected.seen_orders
-    {
-        return Err(RecoveryError::Checkpoint);
-    }
-    let mut replay = VerifiedReplay::new(
-        &config.collator_id,
-        &config.collator_pubkey,
-        config.max_entries,
-    )
-    .map_err(|_| RecoveryError::Invalid)?;
-    for line in bundle.ndjson.split_terminator('\n') {
-        deadline(end)?;
-        if line.len() > limits.max_record_bytes {
-            return Err(RecoveryError::Limit);
-        }
-        replay
-            .apply_line(line)
-            .map_err(|_| RecoveryError::Corrupt)?;
-    }
-    if replay.checkpoint() != expected {
-        return Err(RecoveryError::Checkpoint);
-    }
-    deadline(end)?;
-    if Instant::now()
-        .checked_duration_since(fresh.requested_at)
-        .is_none_or(|age| age > fresh.max_age)
-    {
-        return Err(RecoveryError::Freshness);
-    }
-    Ok(expected)
+        operator_id,
+        target,
+        limits.clone(),
+        RecoverySessionLimits {
+            max_pages: 1,
+            max_total_export_bytes: limits.max_export_bytes as u64,
+            timeout: limits.timeout,
+        },
+    )?;
+    replay.accept_page(bundle, export_challenge)?;
+    replay.finish(fresh)
 }

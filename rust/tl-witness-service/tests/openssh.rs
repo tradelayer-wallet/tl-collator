@@ -22,7 +22,8 @@ use tl_collator_wire::{
 };
 use tl_witness_service::{
     recovery::{
-        verify_full_recovery, FreshReceipt, RecoveryExport, RecoveryLimits, REQUEST_DOMAIN,
+        verify_full_recovery, FreshReceipt, PagedRecovery, RecoveryExport, RecoveryLimits,
+        RecoverySessionLimits, REQUEST_DOMAIN,
     },
     ssh::{SshConfig, SshWitnessTransport},
     Config, WitnessService,
@@ -87,9 +88,12 @@ fn limits() -> RecoveryLimits {
     }
 }
 fn request(cp: &Checkpoint, seed: u8) -> String {
+    request_range(cp, 1, cp.last_seq, &"ab".repeat(32), seed)
+}
+fn request_range(cp: &Checkpoint, start: u64, count: u64, nonce: &str, seed: u8) -> String {
     let mut value = json!({"domain":REQUEST_DOMAIN,"v":1,"collatorId":"collator-test","network":"LTCTEST",
-        "stream":"orders","epoch":3,"operatorId":"test-operator","startSeq":1,"count":cp.last_seq,
-        "checkpointSeq":cp.last_seq,"checkpointHash":cp.last_hash,"seenOrders":cp.seen_orders,"challenge":"ab".repeat(32)});
+        "stream":"orders","epoch":3,"operatorId":"test-operator","startSeq":start,"count":count,
+        "checkpointSeq":cp.last_seq,"checkpointHash":cp.last_hash,"seenOrders":cp.seen_orders,"challenge":nonce});
     value["sigOperator"] = json!(signature(
         &sha256_hex(&canonical_json(&value).unwrap()),
         seed
@@ -455,9 +459,60 @@ fn real_openssh_recovery_and_authorization() {
     )
     .unwrap();
     assert_eq!(verified, checkpoint);
+    let configuration = config();
+    let mut paged = PagedRecovery::new(
+        &configuration,
+        &public(5),
+        "test-operator",
+        checkpoint.clone(),
+        RecoveryLimits {
+            max_records: 1,
+            ..limits()
+        },
+        RecoverySessionLimits {
+            max_pages: 2,
+            max_total_export_bytes: 8192,
+            timeout: Duration::from_secs(20),
+        },
+    )
+    .unwrap();
+    let mut assembled = String::new();
+    for n in 1..=2 {
+        let challenge = format!("{n:064x}");
+        let output = server.raw(
+            "recovery key",
+            "witness-export",
+            &request_range(&checkpoint, n, 1, &challenge, 7),
+        );
+        assert!(output.status.success());
+        let raw = String::from_utf8(output.stdout).unwrap();
+        let (manifest, ndjson) = raw.split_once('\n').unwrap();
+        let page = RecoveryExport {
+            manifest: manifest.into(),
+            ndjson: ndjson.into(),
+        };
+        paged.accept_page(&page, &challenge).unwrap();
+        assembled.push_str(&page.ndjson);
+    }
+    let final_challenge = "ef".repeat(32);
+    let started = Instant::now();
+    let fresh = server
+        .client("writer key")
+        .latest(&final_challenge)
+        .unwrap();
+    let verified = paged
+        .finish(FreshReceipt {
+            raw: &fresh,
+            challenge: &final_challenge,
+            requested_at: started,
+            max_age: Duration::from_secs(10),
+        })
+        .unwrap();
+    assert_eq!(verified, checkpoint);
+    assert_eq!(assembled, bundle.ndjson);
     let restored = server.root.join("restored");
     fs::create_dir(&restored).unwrap();
-    restricted(&restored.join("orders.ndjson"), &bundle.ndjson, 0o600);
+    restricted(&restored.join("orders.ndjson"), &assembled, 0o600);
     let imported = DurableTape::open(
         &restored,
         "orders",
@@ -529,5 +584,5 @@ fn real_openssh_recovery_and_authorization() {
     );
     server.stop();
     assert!(server.client("writer key").latest(&nonce).is_err());
-    println!("Real OpenSSH: genesis CAS, lost-ack recovery, disjoint forced commands, operator signatures, hostile environment, unknown identity, host pinning, policy permissions, deadline and partition refusal passed.");
+    println!("Real OpenSSH: genesis CAS, paged lost-ack recovery, disjoint forced commands, operator signatures, hostile environment, unknown identity, host pinning, policy permissions, deadline and partition refusal passed.");
 }
