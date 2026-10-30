@@ -1,5 +1,10 @@
 # TradeLayer independent checkpoint witness (RUST-17F prototype)
 
+Operator-only history export and offline verification are documented in
+[RECOVERY.md](RECOVERY.md). The separate `witness-export` capability requires
+an independently pinned operator authorization key; `witnessctl` remains
+limited to latest/CAS.
+
 The witness is a **separate Rust package**, deliberately not linked into the
 live TypeScript collator server. Its persistence is a verified append-only copy
 of signed collator entries using the already audited Rust DurableTape primitive.

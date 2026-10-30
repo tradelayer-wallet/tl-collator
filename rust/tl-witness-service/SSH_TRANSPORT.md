@@ -21,7 +21,13 @@ ProxyCommand=none, no port forwarding, and no SSH control master.
 Only validated integer/hex values go in the remote command; the complete
 signed entry travels over stdin.
 
-A whole subprocess deadline kills a hung SSH process. Output is capped at
+A whole subprocess deadline covers both process exit and completion of stdin
+and stdout I/O. Each SSH command has its own POSIX process group; cleanup sends
+SIGKILL to that group through the trusted `/bin/kill` utility on success or
+failure, including descendants that inherited pipes after their leader exited.
+Unfinished I/O threads are never joined on timeout. The configured executable
+must be operator trusted and preserve group membership; a process supervisor
+is required for containment of deliberately escaping descendants. Output is capped at
 8192 bytes and decoded as UTF-8, never interpreted as a trustworthy checkpoint
 without a separately verified WitnessScope signature. Subprocess errors and
 stderr are redacted from the API; no private key bytes are passed as args.

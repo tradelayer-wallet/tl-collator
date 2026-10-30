@@ -18,28 +18,12 @@ jobs:
       - name: Fetch locked dependencies
         working-directory: rust/tl-witness-service
         run: cargo fetch --locked
-      - name: Format SSH adapter for source commit
+      - name: Verify committed formatting
         working-directory: rust/tl-witness-service
-        run: |
-          cargo fmt --all
-          echo SSH_BEGIN
-          base64 -w0 src/ssh.rs
-          echo
-          echo SSH_END
-          echo SSH_TEST_BEGIN
-          base64 -w0 tests/ssh.rs
-          echo
-          echo SSH_TEST_END
-          echo LIB_BEGIN
-          base64 -w0 src/lib.rs
-          echo
-          echo LIB_END
+        run: cargo fmt --all -- --check
       - name: Unit, CLI permissions, synthetic-key CAS tests
         working-directory: rust/tl-witness-service
         run: cargo test --locked --offline
       - name: Strict clippy
         working-directory: rust/tl-witness-service
         run: cargo clippy --locked --offline --all-targets -- -D warnings
-      - name: Verify committed formatting
-        working-directory: rust/tl-witness-service
-        run: cargo fmt --all -- --check

@@ -4,6 +4,8 @@
 #![forbid(unsafe_code)]
 
 #[cfg(unix)]
+pub mod recovery;
+#[cfg(unix)]
 pub mod ssh;
 
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
