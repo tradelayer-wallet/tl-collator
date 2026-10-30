@@ -170,6 +170,7 @@ fn ssh_adapter_receives_independently_signed_latest_from_remote_process() {
         "ClearAllForwardings=yes",
         "PasswordAuthentication=no",
         "UserKnownHostsFile=",
+        "UpdateHostKeys=no",
     ] {
         assert!(args.contains(flag), "missing pinned SSH flag: {flag}");
     }

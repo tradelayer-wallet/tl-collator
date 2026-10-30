@@ -76,3 +76,13 @@ latest-head receipt**, not an unsigned status object. The independent host
 must authenticate requests with operator-controlled SSH keys, pin its
 host key, restrict user/environment/permissions, and cap request size
 and subprocess concurrency. No host is provisioned here.
+
+## Review and Lean model
+
+`REVIEW-2026-10-30.md` records an adversarial review of the recovery export and
+forced-command policy (three Low defects fixed, residuals documented). `lean/`
+holds a core-Lean 4.34.1 model of forced-command dispatch, export request
+authorization and the offline recovery acceptance predicate, with `decide`
+vectors mirroring the Rust tests. Run it with `lake build` and
+`lake env lean AxiomCheck.lean` in that directory; CI job `lean` does the same
+(it runs only after a push).

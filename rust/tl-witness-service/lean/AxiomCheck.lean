@@ -1,0 +1,21 @@
+import TlWitnessService
+#print axioms TlWitnessService.parse_cases
+#print axioms TlWitnessService.parse_export
+#print axioms TlWitnessService.witness_never_exports
+#print axioms TlWitnessService.recovery_only_export
+#print axioms TlWitnessService.exporter_requires_recovery
+#print axioms TlWitnessService.gate_consistent
+#print axioms TlWitnessService.cas_args
+#print axioms TlWitnessService.latest_nonce
+#print axioms TlWitnessService.authorize_sound
+#print axioms TlWitnessService.stale_checkpoint_refused
+#print axioms TlWitnessService.unsigned_refused
+#print axioms TlWitnessService.range_bounded
+#print axioms TlWitnessService.replay_same_checkpoint
+#print axioms TlWitnessService.accept_spec
+#print axioms TlWitnessService.run_contig
+#print axioms TlWitnessService.run_target
+#print axioms TlWitnessService.run_challenges
+#print axioms TlWitnessService.verify_complete
+#print axioms TlWitnessService.failure_sticky
+#print axioms TlWitnessService.fresh_distinct

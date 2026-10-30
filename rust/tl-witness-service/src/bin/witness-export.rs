@@ -114,7 +114,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut private = [0u8; 32];
     let decoded = (|| -> Result<(), Box<dyn std::error::Error>> {
         let text = raw_key.trim();
-        if text.len() != 64 {
+        // from_str_radix accepts a leading '+'; witnessctl requires plain hex digits.
+        if text.len() != 64 || !text.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err("invalid key".into());
         }
         for (i, b) in private.iter_mut().enumerate() {

@@ -1337,3 +1337,50 @@ fn paged_replay_keeps_order_ownership_across_page_boundaries() {
         .unwrap();
     assert_eq!(verifier.finish(receipt_for(&receipt(&t))).unwrap(), cp);
 }
+
+#[test]
+fn key_text_must_be_plain_hex_not_sign_prefixed() {
+    // u8::from_str_radix accepts a leading '+', so "+5" used to parse as 0x05.
+    // Find a key with a leading-zero byte and check the sign-prefixed spelling is refused.
+    for seed in 1u8..=255 {
+        let hex = pubkey(&[seed; 32]);
+        let at = (1..hex.len() / 2)
+            .map(|i| i * 2)
+            .find(|i| hex.as_bytes()[*i] == b'0');
+        if let Some(i) = at {
+            let mut bad = hex.clone();
+            bad.replace_range(i..i + 1, "+");
+            assert!(RecoveryPolicy::new("recovery-operator", &hex, limits()).is_ok());
+            assert!(RecoveryPolicy::new("recovery-operator", &bad, limits()).is_err());
+            return;
+        }
+    }
+    panic!("no suitable test key");
+}
+#[test]
+fn export_cli_rejects_sign_prefixed_key_file() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let t = Tmp::new();
+    let cp = populated(&t);
+    cli_files(&t, 10_000);
+    let run = |t: &Tmp| {
+        let mut process = cli(t)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        process
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(signed_request(&cp, 1, 3).to_string().as_bytes())
+            .unwrap();
+        process.wait_with_output().unwrap()
+    };
+    assert!(run(&t).status.success());
+    // "+5" parses as 0x05 under from_str_radix: the same key, non-canonical spelling.
+    fs::write(t.path().join("secret"), format!("+5{}", "05".repeat(31))).unwrap();
+    let denied = run(&t);
+    assert!(!denied.status.success());
+    assert!(denied.stdout.is_empty());
+}

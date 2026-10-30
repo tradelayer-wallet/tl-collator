@@ -184,6 +184,8 @@ impl SshWitnessTransport {
             self.config.known_hosts.display()
         ));
         command.args(["-o", "GlobalKnownHostsFile=/dev/null"]);
+        // The pinned known_hosts file is read-only evidence: never let a server rewrite it.
+        command.args(["-o", "UpdateHostKeys=no"]);
         command
             .arg("-o")
             .arg(format!("ConnectTimeout={connect_timeout}"));

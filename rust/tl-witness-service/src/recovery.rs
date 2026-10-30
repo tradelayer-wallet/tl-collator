@@ -92,7 +92,9 @@ impl RecoveryPolicy {
 }
 
 fn key(text: &str) -> Result<PublicKey> {
-    if !matches!(text.len(), 66 | 130) {
+    // from_str_radix would also accept a leading '+', so non-canonical key text could
+    // name a valid point; require plain hex digits.
+    if !matches!(text.len(), 66 | 130) || !text.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(RecoveryError::Invalid);
     }
     let bytes = text

@@ -1,0 +1,5 @@
+name = "tl_witness_service"
+defaultTargets = ["TlWitnessService"]
+
+[[lean_lib]]
+name = "TlWitnessService"
