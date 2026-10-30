@@ -1,0 +1,5 @@
+name = "tl_collator_service"
+defaultTargets = ["TlCollatorService"]
+
+[[lean_lib]]
+name = "TlCollatorService"

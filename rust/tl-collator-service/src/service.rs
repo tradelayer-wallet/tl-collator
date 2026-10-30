@@ -1045,7 +1045,12 @@ impl Service {
         now_ms: u64,
     ) -> Vec<Out> {
         let shard = (ticket.0 as usize) % self.http_sessions.len().max(1);
-        let rsid = self.http_sessions[shard].clone();
+        let Some(rsid) = self.http_sessions.get(shard).cloned() else {
+            return vec![reply(
+                ticket,
+                HttpResponse::error(503, &cors_headers, "BUSY", "no routing session"),
+            )];
+        };
         let caller_id = req.id.clone();
         let compat_method = match &kind {
             RpcKind::Compat { method } => Some(method.clone()),
