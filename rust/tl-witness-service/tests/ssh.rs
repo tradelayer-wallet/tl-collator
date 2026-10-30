@@ -61,7 +61,7 @@ impl Env {
         let source = if let Some(contents) = script_override {
             contents.to_owned()
         } else {
-            format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = witnessctl ]; then\n    shift\n    export TL_WITNESS_DATA_DIR={}\n    export TL_WITNESS_KEY_FILE={}\n    export TL_WITNESS_COLLATOR_ID=collator-test\n    export TL_WITNESS_COLLATOR_PUBKEY={}\n    export TL_WITNESS_NETWORK=LTCTEST\n    export TL_WITNESS_STREAM=orders\n    export TL_WITNESS_EPOCH=3\n    export TL_WITNESS_MAX_ENTRIES=100\n    exec {} \"$@\"\n  fi\n  shift\ndone\nexit 2\n",
+            format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = witnessctl ]; then\n    shift\n    export TL_WITNESS_DATA_DIR={}\n    export TL_WITNESS_KEY_FILE={}\n    export TL_WITNESS_COLLATOR_ID=collator-test\n    export TL_WITNESS_COLLATOR_PUBKEY={}\n    export TL_WITNESS_NETWORK=LTCTEST\n    export TL_WITNESS_STREAM=orders\n    export TL_WITNESS_EPOCH=3\n    export TL_WITNESS_MAX_ENTRIES=100\n    exec /bin/sh -c \"{} $*\"\n  fi\n  shift\ndone\nexit 2\n",
                 quote(&args.display().to_string()),
                 quote(&remote.display().to_string()),
                 quote(&witness_key.display().to_string()),
@@ -333,4 +333,66 @@ fn timed_out_process_group_cannot_leave_a_descendant_running() {
     assert!(client.latest(&challenge()).is_err());
     std::thread::sleep(Duration::from_millis(900));
     assert!(!marker.exists());
+}
+
+#[test]
+fn genesis_cas_preserves_empty_hash_through_the_remote_shell() {
+    let env = Env::new(None);
+    let mut client = env.client();
+    let genesis = Checkpoint {
+        last_seq: 0,
+        last_hash: String::new(),
+        seen_orders: 0,
+    };
+    let receipt = client.cas_signed(&genesis, &entry(), &challenge()).unwrap();
+    assert_eq!(
+        scope()
+            .verify_receipt(&receipt, &challenge())
+            .unwrap()
+            .seq(),
+        1
+    );
+    assert!(env.args().contains("\n''\n"));
+}
+
+#[test]
+fn ssh_config_paths_are_literal_and_whitespace_is_quoted() {
+    let env = Env::new(None);
+    let spaced = env.root.join("known hosts");
+    fs::copy(&env.known, &spaced).unwrap();
+    let config = SshConfig::new(
+        env.ssh.clone(),
+        "witnessrunner".into(),
+        "example.test".into(),
+        2222,
+        env.auth.clone(),
+        spaced.clone(),
+        Duration::from_secs(4),
+    )
+    .unwrap();
+    let mut client = SshWitnessTransport::new(config);
+    client.latest(&challenge()).unwrap();
+    assert!(env
+        .args()
+        .contains(&format!("UserKnownHostsFile=\"{}\"", spaced.display())));
+    for name in [
+        "known%h",
+        "known${HOME}",
+        "known\nhosts",
+        "known\"hosts",
+        "known\\hosts",
+    ] {
+        let expanded = env.root.join(name);
+        fs::copy(&env.known, &expanded).unwrap();
+        assert!(SshConfig::new(
+            env.ssh.clone(),
+            "witnessrunner".into(),
+            "example.test".into(),
+            2222,
+            env.auth.clone(),
+            expanded,
+            Duration::from_secs(4)
+        )
+        .is_err());
+    }
 }

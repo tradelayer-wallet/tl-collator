@@ -754,3 +754,127 @@ fn duplicate_fields_extra_fields_and_symlinks_are_refused() {
     std::os::unix::fs::symlink(&original, t.tape()).unwrap();
     assert!(export_history(t.path(), &config("LTCTEST"), &[5; 32], &policy(), &request).is_err());
 }
+
+#[test]
+fn lost_ack_recovery_drill_preserves_failed_tape_and_resumes_only_a_new_verified_store() {
+    use tl_collator_wire::{
+        durable::{
+            DurableError, DurableTape, ImportMode, WitnessTransport, WitnessTransportError,
+            WitnessedTape,
+        },
+        witness::{WitnessError, WitnessScope},
+    };
+    struct LostAck(WitnessService);
+    impl WitnessTransport for LostAck {
+        fn latest(&mut self, challenge: &str) -> Result<String, WitnessTransportError> {
+            self.0.latest(challenge)
+        }
+        fn cas_signed(
+            &mut self,
+            before: &Checkpoint,
+            entry: &str,
+            _challenge: &str,
+        ) -> Result<String, WitnessTransportError> {
+            self.0
+                .compare_and_swap(before, entry)
+                .map_err(|_| WitnessTransportError::Unavailable)?;
+            Err(WitnessTransportError::Unavailable)
+        }
+    }
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let failed = Tmp::new();
+    let remote = Tmp::new();
+    let restored = Tmp::new();
+    let witness_scope =
+        || WitnessScope::new("collator-test", "LTCTEST", "orders", 3, &pubkey(&[5; 32])).unwrap();
+    let mut writer = WitnessedTape::open(
+        failed.path(),
+        "orders",
+        "collator-test",
+        &pubkey(&[3; 32]),
+        50,
+        witness_scope(),
+        LostAck(open(&remote)),
+    )
+    .unwrap();
+    assert!(matches!(
+        writer.append_signed(&entry(1, "", order(101))),
+        Err(DurableError::RemoteUncertain)
+    ));
+    assert!(writer.is_blocked());
+    assert_eq!(writer.checkpoint().last_seq, 0);
+    drop(writer);
+    let old_tape = fs::read(failed.path().join("orders.ndjson")).unwrap();
+    let old_anchor = fs::read(failed.path().join("orders.checkpoint")).unwrap();
+    let committed = open(&remote).checkpoint();
+    assert_eq!(committed.last_seq, 1);
+    assert!(matches!(
+        WitnessedTape::open(
+            failed.path(),
+            "orders",
+            "collator-test",
+            &pubkey(&[3; 32]),
+            50,
+            witness_scope(),
+            open(&remote)
+        ),
+        Err(DurableError::Witness(WitnessError::Rollback))
+    ));
+    let bundle = export(&remote, &committed, 1, 1);
+    let started = Instant::now();
+    let fresh = receipt(&remote);
+    let approved_checkpoint = verify(&bundle, &fresh, started).unwrap();
+    assert_eq!(approved_checkpoint, committed);
+    // Synthetic drill models the explicit operator's approval of this exact
+    // checkpoint and NEW destination. No recovery API writes or repairs it.
+    assert_eq!(fs::read_dir(restored.path()).unwrap().count(), 0);
+    fs::set_permissions(restored.path(), fs::Permissions::from_mode(0o700)).unwrap();
+    let restored_tape = restored.path().join("orders.ndjson");
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&restored_tape)
+        .unwrap();
+    fs::set_permissions(&restored_tape, fs::Permissions::from_mode(0o600)).unwrap();
+    file.write_all(bundle.ndjson.as_bytes()).unwrap();
+    file.sync_all().unwrap();
+    drop(file);
+    let imported = DurableTape::open(
+        restored.path(),
+        "orders",
+        "collator-test",
+        &pubkey(&[3; 32]),
+        50,
+        ImportMode::ExplicitVerifiedImport,
+    )
+    .unwrap();
+    assert_eq!(imported.checkpoint(), approved_checkpoint);
+    drop(imported);
+    // Startup obtains another independently challenge-bound receipt under its
+    // own lock before accepting the imported store or any resumed append.
+    let mut resumed = WitnessedTape::open(
+        restored.path(),
+        "orders",
+        "collator-test",
+        &pubkey(&[3; 32]),
+        50,
+        witness_scope(),
+        open(&remote),
+    )
+    .unwrap();
+    assert_eq!(resumed.checkpoint(), approved_checkpoint);
+    let next = resumed
+        .append_signed(&entry(2, &approved_checkpoint.last_hash, order(102)))
+        .unwrap();
+    assert_eq!(next.last_seq, 2);
+    drop(resumed);
+    assert_eq!(open(&remote).checkpoint(), next);
+    assert_eq!(
+        fs::read(failed.path().join("orders.ndjson")).unwrap(),
+        old_tape
+    );
+    assert_eq!(
+        fs::read(failed.path().join("orders.checkpoint")).unwrap(),
+        old_anchor
+    );
+}

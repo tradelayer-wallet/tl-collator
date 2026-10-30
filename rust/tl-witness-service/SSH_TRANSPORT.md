@@ -21,6 +21,13 @@ ProxyCommand=none, no port forwarding, and no SSH control master.
 Only validated integer/hex values go in the remote command; the complete
 signed entry travels over stdin.
 
+OpenSSH sends the remote command through a shell, so the adapter explicitly
+encodes the genesis predecessor hash as `''` rather than relying on an empty
+local argv element. `UserKnownHostsFile` paths are quoted for the ssh_config
+parser. Identity and host-key paths with control characters, quotes, backslash,
+`$` or `%` are refused so OpenSSH expansion cannot select a different file from
+the one validated locally. Whitespace in ordinary absolute paths is supported.
+
 A whole subprocess deadline covers both process exit and completion of stdin
 and stdout I/O. Each SSH command has its own POSIX process group; cleanup sends
 SIGKILL to that group through the trusted `/bin/kill` utility on success or
@@ -34,8 +41,9 @@ stderr are redacted from the API; no private key bytes are passed as args.
 
 ## CI coverage and limits
 
-The tests use a disposable fake-SSH executable which forwards exactly the
-requested witnessctl arguments to a separate local process. It tests the
+The tests use a disposable fake-SSH executable which joins the remote command
+and invokes a shell, matching OpenSSH's argument handling for a separate local
+witnessctl process. It tests genesis CAS empty-hash preservation as well as the
 argument policy, a real witnessctl-provided signed latest response, and
 remote-first WitnessedTape append across independent test directories.
 Timeout and bad-output cases demonstrate rejection.

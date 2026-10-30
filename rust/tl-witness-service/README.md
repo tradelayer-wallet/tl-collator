@@ -5,6 +5,10 @@ Operator-only history export and offline verification are documented in
 an independently pinned operator authorization key; `witnessctl` remains
 limited to latest/CAS.
 
+The optional server-side [forced-command gate](FORCED_COMMAND.md) fixes role,
+scope and environment from administrator policy. Its CI test uses real encrypted
+loopback OpenSSH with generated credentials and an explicit recovery drill.
+
 The witness is a **separate Rust package**, deliberately not linked into the
 live TypeScript collator server. Its persistence is a verified append-only copy
 of signed collator entries using the already audited Rust DurableTape primitive.

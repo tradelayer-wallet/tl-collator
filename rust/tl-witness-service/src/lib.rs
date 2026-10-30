@@ -4,6 +4,8 @@
 #![forbid(unsafe_code)]
 
 #[cfg(unix)]
+pub mod forced_command;
+#[cfg(unix)]
 pub mod recovery;
 #[cfg(unix)]
 pub mod ssh;

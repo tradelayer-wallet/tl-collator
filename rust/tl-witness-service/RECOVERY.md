@@ -204,6 +204,14 @@ receipt refusal. SSH tests cover inherited stdout/stdin descriptors and process
 group cleanup. CI checks committed formatting before tests without rewriting
 sources or dumping source encodings.
 
+The lost-acknowledgment recovery drill commits remotely, loses the reply,
+confirms the old local store refuses startup, exports and independently verifies
+the missing signed history, models explicit approval into a new directory,
+performs the existing offline import, and resumes a witnessed append. It checks
+that the failed tape and checkpoint bytes remain unchanged. This models an
+operator ceremony with synthetic data; it does not certify a human approval
+workflow or physical durability.
+
 These local tests do not establish independent administrator/key custody,
 real forced-command separation, physical power-loss persistence, secure
 anti-rollback backups, network partitions, or a safe production restore.

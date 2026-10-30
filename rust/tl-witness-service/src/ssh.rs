@@ -63,6 +63,16 @@ fn regular(path: &Path) -> bool {
     path.is_absolute() && fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_file())
 }
 
+// OpenSSH parses -o as ssh_config text and expands tokens in file paths.
+// Quote whitespace and refuse expansion/escape syntax so the path inspected
+// below names the same identity/host-key file that OpenSSH actually opens.
+fn literal_ssh_path(path: &Path) -> bool {
+    path.to_str().is_some_and(|s| {
+        !s.chars()
+            .any(|c| c.is_control() || matches!(c, '\\' | '"' | '$' | '%'))
+    })
+}
+
 /// The SSH *client* process uses the operator's private authentication key,
 /// distinct from the witness service's ECDSA signing key and collator key.
 pub struct SshConfig {
@@ -91,6 +101,8 @@ impl SshConfig {
             || !regular(&ssh_binary)
             || !regular(&identity)
             || !regular(&known_hosts)
+            || !literal_ssh_path(&identity)
+            || !literal_ssh_path(&known_hosts)
             || timeout < Duration::from_millis(250)
             || timeout > Duration::from_secs(60)
         {
@@ -168,7 +180,7 @@ impl SshWitnessTransport {
             "PreferredAuthentications=publickey",
         ]);
         command.arg("-o").arg(format!(
-            "UserKnownHostsFile={}",
+            "UserKnownHostsFile=\"{}\"",
             self.config.known_hosts.display()
         ));
         command.args(["-o", "GlobalKnownHostsFile=/dev/null"]);
@@ -181,7 +193,14 @@ impl SshWitnessTransport {
         command.args(["-T", "--"]);
         command.arg(format!("{}@{}", self.config.user, self.config.host));
         command.args(["witnessctl", action]);
-        command.args(values);
+        // OpenSSH joins remote argv with spaces; the remote shell otherwise
+        // discards the empty predecessor hash in the genesis CAS command.
+        // Nonempty values are strictly validated decimal/hex before run().
+        command.args(
+            values
+                .iter()
+                .map(|v| if v.is_empty() { "''" } else { v.as_str() }),
+        );
         command.stdin(if input.is_some() {
             Stdio::piped()
         } else {

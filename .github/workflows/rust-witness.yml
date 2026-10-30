@@ -27,3 +27,22 @@ jobs:
       - name: Strict clippy
         working-directory: rust/tl-witness-service
         run: cargo clippy --locked --offline --all-targets -- -D warnings
+      - name: Build real OpenSSH integration test
+        working-directory: rust/tl-witness-service
+        run: cargo test --locked --offline --test openssh --no-run --message-format=json > "$RUNNER_TEMP/witness-ssh-artifacts.jsonl"
+      - name: Real encrypted loopback SSH, forced-command roles and recovery drill
+        working-directory: rust/tl-witness-service
+        run: |
+          sshd_binary=/usr/sbin/sshd
+          if [ ! -x "$sshd_binary" ]; then
+            sudo apt-get update
+            mkdir -p "$RUNNER_TEMP/witness-sshd"
+            (
+              cd "$RUNNER_TEMP/witness-sshd"
+              apt-get download openssh-server
+              dpkg-deb --extract ./*.deb ./package
+            )
+            sshd_binary="$RUNNER_TEMP/witness-sshd/package/usr/sbin/sshd"
+          fi
+          "$sshd_binary" -V
+          sudo python3 scripts/run-openssh-test.py --sshd "$sshd_binary" --artifacts "$RUNNER_TEMP/witness-ssh-artifacts.jsonl"
